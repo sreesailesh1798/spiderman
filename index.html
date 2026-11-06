@@ -1,0 +1,3704 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Marvel's Spider-Man 3D: Web of Manhattan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d16;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        .font-comic {
+            font-family: 'Bangers', cursive;
+            letter-spacing: 0.06em;
+        }
+        .font-hud {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .spidey-panel {
+            background: rgba(10, 15, 28, 0.48);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: opacity 0.25s ease, transform 0.25s ease, background 0.25s ease;
+        }
+        .spidey-panel:hover {
+            background: rgba(15, 23, 42, 0.72);
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+        .spidey-btn {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            transition: all 0.15s ease;
+        }
+        .spidey-btn:hover {
+            background: rgba(30, 41, 59, 0.85);
+            border-color: rgba(239, 68, 68, 0.65);
+            transform: translateY(-1px);
+        }
+        .spidey-btn:active, .spidey-btn.active-btn {
+            background: rgba(220, 38, 38, 0.85);
+            border-color: #fca5a5;
+            transform: scale(0.96);
+        }
+        .hud-subtle {
+            opacity: 0.72;
+            transition: opacity 0.25s ease;
+        }
+        .hud-subtle:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="relative w-full h-full overflow-hidden text-white">
+
+    <!-- MAIN 3D WEBGL CONTAINER & 2D FX OVERLAY CANVAS -->
+    <div id="webglContainer" class="fixed inset-0 w-full h-full z-0"></div>
+    <canvas id="fxCanvas" class="pointer-events-none fixed inset-0 w-full h-full z-10"></canvas>
+
+    <!-- SLEEK MINIMALIST TOP HUD BAR -->
+    <div class="pointer-events-none fixed top-0 left-0 right-0 p-3 sm:p-5 flex justify-between items-start gap-3 z-20">
+        
+        <!-- LEFT HUD: SLIM INSOMNIAC-STYLE HEALTH & FOCUS BARS + COMPACT SETTINGS BAR -->
+        <div class="flex flex-col gap-1.5 pointer-events-auto hud-subtle">
+            <div class="spidey-panel rounded-xl px-3 py-2 flex items-center gap-2.5">
+                <!-- Minimal Spider Badge -->
+                <div class="relative w-8 h-8 rounded-lg bg-red-600/80 flex items-center justify-center border border-red-400/40 shrink-0">
+                    <svg class="w-5 h-5 text-white" viewBox="0 0 64 64" fill="currentColor">
+                        <path d="M32 12c-3 0-5.5 2.5-6 6l-9-8-3 2 9 9-12-3-1 3 12 4-11 6 1 3 12-5-8 10 2 2 9-9c.5 5 2.5 11 5 14 2.5-3 4.5-9 5-14l9 9 2-2-8-10 12 5 1-3-11-6 12-4-1-3-12 3 9-9-3-2-9 8c-.5-3.5-3-6-6-6z"/>
+                    </svg>
+                    <span id="hudLevel" class=" -bottom-1 -right-1 absolute bg-slate-900/90 text-[8px] font-hud font-bold px-1 rounded border border-white/20">1</span>
+                </div>
+
+                <!-- Slimmer Angled Bars -->
+                <div class="w-36 sm:w-44">
+                    <div class="flex justify-between items-center text-[10px] font-bold mb-0.5">
+                        <span class="tracking-wider text-slate-300 font-hud">HP</span>
+                        <span id="healthText" class="font-hud text-white/90">100%</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-slate-900/80 rounded-full overflow-hidden">
+                        <div id="healthBar" class="h-full bg-gradient-to-r from-red-500 to-rose-400 rounded-full transition-all duration-150" style="width: 100%"></div>
+                    </div>
+
+                    <div class="flex justify-between items-center text-[9px] font-bold mt-1 mb-0.5">
+                        <span class="tracking-wider text-cyan-300/90 font-hud">FOCUS</span>
+                        <span id="focusHint" class="text-amber-300 hidden animate-pulse font-hud">[F] STRIKE</span>
+                    </div>
+                    <div class="w-full h-1 bg-slate-900/80 rounded-full overflow-hidden">
+                        <div id="focusBar" class="h-full bg-gradient-to-r from-sky-400 to-cyan-200 rounded-full transition-all duration-100" style="width: 65%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ultra-Compact Quick Pill Bar -->
+            <div class="flex flex-wrap items-center gap-1">
+                <button id="suitBtn" class="spidey-btn px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 text-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-red-500 inline-block" id="suitDot"></span>
+                    <span id="suitName">Classic Suit</span>
+                </button>
+                <button id="timeBtn" class="spidey-btn px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 text-amber-200">
+                    <span id="timeIcon">🌇</span>
+                    <span id="timeName">Golden Hour</span>
+                </button>
+                <button id="soundBtn" class="spidey-btn px-2 py-1 rounded-lg text-[11px] font-medium text-cyan-200" title="Toggle Audio">
+                    🔊 ON
+                </button>
+                <div class="spidey-panel px-2 py-0.5 rounded-lg flex items-center gap-1.5 text-[10px] font-hud text-slate-300">
+                    <span>PACE</span>
+                    <input id="speedSlider" type="range" min="0.5" max="1.8" step="0.1" value="1.0" class="w-12 accent-red-500 cursor-pointer h-1 bg-slate-700 rounded-lg">
+                    <span id="speedMultiplierLabel" class="text-amber-300 font-bold">1.0x</span>
+                </div>
+                <button id="helpBtn" class="spidey-btn px-2 py-1 rounded-lg text-[11px] font-medium text-slate-300" title="Controls">
+                    ❓
+                </button>
+            </div>
+        </div>
+
+        <!-- RIGHT HUD: SUBTLE AUTO-FADING COMBO & CIRCULAR MINIMAP -->
+        <div class="flex items-center gap-2.5 pointer-events-auto hud-subtle">
+            <!-- Minimalist Combo Display (Fades down when combo is 0) -->
+            <div id="comboCard" class="spidey-panel rounded-xl px-3 py-1.5 text-right min-w-[110px] transition-opacity duration-300 opacity-40">
+                <div class="flex items-baseline justify-end gap-1.5">
+                    <span id="comboMultiplier" class="font-comic text-xl sm:text-2xl text-amber-400">0x</span>
+                    <span id="styleRank" class="font-hud text-[10px] font-bold text-red-400 tracking-wider">READY</span>
+                </div>
+                <div class="w-full h-1 bg-slate-800/80 rounded-full overflow-hidden my-0.5">
+                    <div id="comboTimerBar" class="h-full bg-gradient-to-r from-amber-400 to-red-500 transition-all duration-75" style="width: 0%"></div>
+                </div>
+                <div class="text-[10px] font-hud text-slate-300">
+                    <span id="scoreDisplay">000,000</span>
+                </div>
+            </div>
+
+            <!-- Sleek Circular Radar Minimap -->
+            <div class="spidey-panel rounded-full p-1 hidden sm:flex items-center justify-center">
+                <canvas id="radarCanvas" width="76" height="76" class="rounded-full bg-slate-950/80 border border-white/10"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM HUD: UNOBTRUSIVE CORNER TELEMETRY & COMPACT TOUCH/ACTION CONTROLS -->
+    <div class="pointer-events-none fixed bottom-0 left-0 right-0 p-3 sm:p-5 flex justify-between items-end gap-2 z-20">
+        
+        <!-- BOTTOM-LEFT: MINIMAL DIGITAL SPEEDOMETER -->
+        <div class="spidey-panel rounded-xl px-3 py-1.5 flex items-center gap-2.5 pointer-events-auto hud-subtle">
+            <div class="relative w-10 h-10 flex items-center justify-center">
+                <svg class="w-full h-full -rotate-90" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="5" stroke-dasharray="130 170" />
+                    <circle id="speedArc" cx="32" cy="32" r="27" fill="none" stroke="#ef4444" stroke-width="5" stroke-linecap="round" stroke-dasharray="0 170" />
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span id="speedValue" class="font-hud font-bold text-xs leading-none text-white">0</span>
+                    <span class="font-hud text-[7px] text-slate-400">MPH</span>
+                </div>
+            </div>
+            <div class="text-[10px]">
+                <div id="stateLabel" class="font-hud font-bold text-cyan-300 tracking-wide">SWINGING</div>
+                <div class="text-slate-400 text-[9px]">
+                    AIR <span id="airtimeValue" class="font-hud text-slate-200">0.0s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM-CENTER: SUBTLE TRANSLUCENT KEYBOARD HINTS -->
+        <div id="desktopHints" class="hidden lg:flex spidey-panel rounded-full px-3.5 py-1 items-center gap-3 text-[11px] text-slate-300/90 pointer-events-auto hud-subtle">
+            <span><strong class="text-white">SPACE / R-CLICK</strong> Swing</span>
+            <span class="text-slate-600">•</span>
+            <span><strong class="text-white">WASD</strong> Carve & Climb</span>
+            <span class="text-slate-600">•</span>
+            <span><strong class="text-white">SHIFT</strong> Point-Zip</span>
+            <span class="text-slate-600">•</span>
+            <span><strong class="text-white">E</strong> Trick</span>
+            <span class="text-slate-600">•</span>
+            <span><strong class="text-white">F</strong> Strike</span>
+            <span class="text-slate-600">•</span>
+            <span><strong class="text-white">DRAG L-MOUSE</strong> Orbit</span>
+        </div>
+
+        <!-- BOTTOM-RIGHT: COMPACT ACTION PAD -->
+        <div class="flex items-center gap-1.5 pointer-events-auto hud-subtle">
+            <div class="flex md:hidden gap-1 mr-1">
+                <button id="btnLeft" class="spidey-btn w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold">◀</button>
+                <button id="btnRight" class="spidey-btn w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold">▶</button>
+            </div>
+            <button id="btnTrick" class="spidey-btn px-2.5 py-1.5 rounded-lg font-hud text-[10px] font-bold text-amber-300">
+                TRICK [E]
+            </button>
+            <button id="btnStrike" class="spidey-btn px-2.5 py-1.5 rounded-lg font-hud text-[10px] font-bold text-cyan-300">
+                STRIKE [F]
+            </button>
+            <button id="btnZip" class="spidey-btn px-2.5 py-1.5 rounded-lg font-hud text-[10px] font-bold text-blue-300">
+                ZIP [SHIFT]
+            </button>
+            <button id="btnSwing" class="spidey-btn px-3 py-1.5 rounded-lg font-hud text-[10px] font-bold bg-red-600/80 border-red-400/60 text-white">
+                🤟 SWING
+            </button>
+        </div>
+    </div>
+
+    <!-- CONTROLS & FEATURES MODAL OVERLAY -->
+    <div id="helpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="spidey-panel rounded-2xl max-w-xl w-full p-6 border-2 border-red-500/70 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3 mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🕷️</span>
+                    <h2 class="font-comic text-3xl tracking-wider text-white">SPIDER-MAN TRAINING MANUAL</h2>
+                </div>
+                <button id="closeHelpBtn" class="spidey-btn w-8 h-8 rounded-lg font-bold text-slate-300 hover:text-white">✕</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm text-slate-200">
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <div class="font-hud font-bold text-red-400 mb-1">🤟 3D PENDULUM WEB-SWINGING</div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        <strong>Hold Spacebar or Right-Click</strong> (or the <strong>SWING</strong> button) to shoot a 3D web line to an overhead skyscraper anchor. Release on the <strong>upward arc</strong> of your swing for a golden <span class="text-amber-300 font-semibold">Apex Launch Boost!</span>
+                    </p>
+                </div>
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <div class="font-hud font-bold text-blue-400 mb-1">🎥 3D CAMERA & WALL-RUNNING</div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        <strong>Left-Click & Drag</strong> anywhere on screen to orbit the 3D camera around Spider-Man. Steer with <strong>W, A, S, D</strong>. Touch any skyscraper facade while holding <strong>W</strong> to <strong>Wall-Run vertically</strong> up to the roof!
+                    </p>
+                </div>
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <div class="font-hud font-bold text-amber-400 mb-1">🌀 3D ACROBATICS & IRON SPIDER ARMS</div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        Press <strong>E</strong> while airborne for 3D <strong>Backflips, Corkscrews, and Sky-Poses</strong>. Switch to the <strong>Iron Spider Suit</strong> to deploy 4 articulated golden mechanical arms!
+                    </p>
+                </div>
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <div class="font-hud font-bold text-cyan-400 mb-1">⚡ WEB-ZIP & DRONE COMBAT</div>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        Press <strong>Shift</strong> for an instant 3D <strong>Web-Zip</strong> boost forward. Press <strong>F</strong> to home-in on 3D Oscorp Drones with a <strong>Flying Web-Strike Kick</strong>!
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-5 flex justify-end">
+                <button id="resumeGameBtn" class="px-6 py-2.5 rounded-xl font-comic text-xl tracking-wider bg-gradient-to-r from-red-600 to-blue-600 hover:from-red-500 hover:to-blue-500 text-white shadow-lg">
+                    THWIP INTO 3D MANHATTAN!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * MARVEL'S SPIDER-MAN 3D: WEB OF MANHATTAN (Three.js Edition)
+         * Complete 3D Articulated Skeletal Rig, 3D Pendulum Web Physics,
+         * Procedural Manhattan Cityscape, Dynamic FOV Follow Camera & Web Audio SFX
+         * ============================================================================
+         */
+
+        const webglContainer = document.getElementById('webglContainer');
+        const fxCanvas = document.getElementById('fxCanvas');
+        const fxCtx = fxCanvas.getContext('2d');
+        const radarCanvas = document.getElementById('radarCanvas');
+        const radarCtx = radarCanvas ? radarCanvas.getContext('2d') : null;
+
+        let W = window.innerWidth;
+        let H = window.innerHeight;
+
+        // ============================================================================
+        // 1. WEB AUDIO SYNTHESIZER (Thwip, Wind Rush, Impacts, Rings, Combo Chimes)
+        // ============================================================================
+        class SpideySoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+                this.windGain = null;
+                this.windFilter = null;
+                this.initialized = false;
+            }
+
+            init() {
+                if (this.initialized) return;
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                    this.setupWindLoop();
+                    this.initialized = true;
+                } catch (e) {
+                    console.warn('Web Audio API unavailable:', e);
+                }
+            }
+
+            setupWindLoop() {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 2;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                noise.loop = true;
+
+                this.windFilter = this.ctx.createBiquadFilter();
+                this.windFilter.type = 'bandpass';
+                this.windFilter.frequency.value = 350;
+                this.windFilter.Q.value = 1.8;
+
+                this.windGain = this.ctx.createGain();
+                this.windGain.gain.value = 0.0;
+
+                noise.connect(this.windFilter);
+                this.windFilter.connect(this.windGain);
+                this.windGain.connect(this.ctx.destination);
+                noise.start();
+            }
+
+            updateWind(mph) {
+                if (!this.initialized || !this.windGain || !this.enabled) {
+                    if (this.windGain) this.windGain.gain.value = 0;
+                    return;
+                }
+                const norm = Math.min(1, Math.max(0, (mph - 18) / 85));
+                this.windGain.gain.setTargetAtTime(norm * 0.14, this.ctx.currentTime, 0.08);
+                this.windFilter.frequency.setTargetAtTime(250 + norm * 950, this.ctx.currentTime, 0.08);
+            }
+
+            playThwip(pitchMod = 1.0) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(340 * pitchMod, now);
+                osc.frequency.exponentialRampToValueAtTime(1720 * pitchMod, now + 0.065);
+                osc.frequency.exponentialRampToValueAtTime(640 * pitchMod, now + 0.13);
+
+                gain.gain.setValueAtTime(0.22, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.14);
+            }
+
+            playApexBoost() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(920, now + 0.19);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.23);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.23);
+            }
+
+            playTrick() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+                    gain.gain.setValueAtTime(0.12, now + idx * 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.18);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.04);
+                    osc.stop(now + idx * 0.04 + 0.18);
+                });
+            }
+
+            playHit() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.exponentialRampToValueAtTime(42, now + 0.18);
+                gain.gain.setValueAtTime(0.28, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.19);
+            }
+
+            playRingChime() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [587.33, 880, 1174.66].forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(f, now + i * 0.05);
+                    gain.gain.setValueAtTime(0.16, now + i * 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + i * 0.05);
+                    osc.stop(now + i * 0.05 + 0.25);
+                });
+            }
+        }
+
+        const sfx = new SpideySoundEngine();
+
+        // ============================================================================
+        // 2. SUIT PALETTES & TIME OF DAY LIGHTING PRESETS
+        // ============================================================================
+        const SUITS = [
+            {
+                name: 'Classic Suit',
+                primary: 0xdc2626,
+                secondary: 0x1d4ed8,
+                webColor: '#090d16',
+                emblem: 0x090d16,
+                backEmblem: 0xdc2626,
+                eyeRim: 0x090d16,
+                eyeFill: 0xffffff,
+                metalness: 0.14,
+                roughness: 0.42,
+                hasWebs: true,
+                hasWaldoes: false,
+                dotColor: '#ef4444'
+            },
+            {
+                name: 'Symbiote Black',
+                primary: 0x0f172a,
+                secondary: 0x090d16,
+                webColor: '#1e293b',
+                emblem: 0xffffff,
+                backEmblem: 0xffffff,
+                eyeRim: 0x020617,
+                eyeFill: 0xf8fafc,
+                metalness: 0.55,
+                roughness: 0.16,
+                hasWebs: false,
+                hasWaldoes: false,
+                dotColor: '#94a3b8'
+            },
+            {
+                name: 'Iron Spider',
+                primary: 0xb91c1c,
+                secondary: 0x1e293b,
+                webColor: '#d97706',
+                emblem: 0xfbbf24,
+                backEmblem: 0xfbbf24,
+                eyeRim: 0x78350f,
+                eyeFill: 0xfef08a,
+                metalness: 0.78,
+                roughness: 0.20,
+                hasWebs: true,
+                hasWaldoes: true,
+                dotColor: '#fbbf24'
+            },
+            {
+                name: 'Miles Morales',
+                primary: 0x0f172a,
+                secondary: 0x090d16,
+                webColor: '#ef4444',
+                emblem: 0xef4444,
+                backEmblem: 0xef4444,
+                eyeRim: 0xdc2626,
+                eyeFill: 0xffffff,
+                metalness: 0.24,
+                roughness: 0.36,
+                hasWebs: true,
+                hasWaldoes: false,
+                dotColor: '#dc2626'
+            }
+        ];
+        let currentSuitIndex = 0;
+
+        const TIME_THEMES = [
+            {
+                name: 'Golden Hour',
+                icon: '🌇',
+                skyTop: '#0f172a',
+                skyHorizon: '#ea580c',
+                skyColor: 0x1e1b4b,
+                fogColor: 0xd97706,
+                hemiSky: 0xfdba74,
+                hemiGround: 0x1e293b,
+                sunColor: 0xfef08a,
+                sunIntensity: 2.2,
+                exposure: 1.15,
+                sunPos: [420, 195, -480]
+            },
+            {
+                name: 'Neon Night',
+                icon: '🌃',
+                skyTop: '#020617',
+                skyHorizon: '#0f172a',
+                skyColor: 0x020617,
+                fogColor: 0x090d16,
+                hemiSky: 0x38bdf8,
+                hemiGround: 0x020617,
+                sunColor: 0x60a5fa,
+                sunIntensity: 0.95,
+                exposure: 0.95,
+                sunPos: [-320, 420, -340]
+            },
+            {
+                name: 'Clear Midday',
+                icon: '☀️',
+                skyTop: '#0369a1',
+                skyHorizon: '#bae6fd',
+                skyColor: 0x0284c7,
+                fogColor: 0x93c5fd,
+                hemiSky: 0xf0f9ff,
+                hemiGround: 0x334155,
+                sunColor: 0xffffff,
+                sunIntensity: 2.4,
+                exposure: 1.22,
+                sunPos: [260, 580, 220]
+            }
+        ];
+        let currentTimeIndex = 0;
+
+        // ============================================================================
+        // 3. AA THREE.JS SCENE, ACES TONE MAPPING, PBR ENVIRONMENT & REALISTIC TEXTURES
+        // ============================================================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(TIME_THEMES[0].skyColor);
+        scene.fog = new THREE.FogExp2(TIME_THEMES[0].fogColor, 0.00085);
+
+        const camera = new THREE.PerspectiveCamera(58, W / H, 0.5, 2200);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(W, H);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = TIME_THEMES[0].exposure;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        webglContainer.appendChild(renderer.domElement);
+
+        // Procedural Equirectangular Environment Reflection Map for Realistic Glass & Suit Speculars
+        function createCityEnvironmentMap(topColor = '#1e1b4b', horizonColor = '#f97316') {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 256;
+            const g = c.getContext('2d');
+
+            // Sky gradient
+            const skyGrad = g.createLinearGradient(0, 0, 0, 140);
+            skyGrad.addColorStop(0, topColor);
+            skyGrad.addColorStop(0.75, horizonColor);
+            skyGrad.addColorStop(1, '#fde047');
+            g.fillStyle = skyGrad;
+            g.fillRect(0, 0, 512, 140);
+
+            // Ground & reflected city silhouette
+            const groundGrad = g.createLinearGradient(0, 140, 0, 256);
+            groundGrad.addColorStop(0, '#1e293b');
+            groundGrad.addColorStop(1, '#020617');
+            g.fillStyle = groundGrad;
+            g.fillRect(0, 140, 512, 116);
+
+            // Distant skyline silhouette & glowing windows in reflection map
+            g.fillStyle = '#0f172a';
+            for (let x = 0; x < 512; x += 16) {
+                const bh = 25 + ((x * 37) % 55);
+                g.fillRect(x, 140 - bh, 14, bh + 20);
+                g.fillStyle = 'rgba(254, 240, 138, 0.5)';
+                for (let wy = 140 - bh + 4; wy < 138; wy += 6) {
+                    g.fillRect(x + 3, wy, 8, 2);
+                }
+                g.fillStyle = '#0f172a';
+            }
+
+            const envTex = new THREE.CanvasTexture(c);
+            envTex.mapping = THREE.EquirectangularReflectionMapping;
+            envTex.encoding = THREE.sRGBEncoding;
+            return envTex;
+        }
+
+        scene.environment = createCityEnvironmentMap(TIME_THEMES[0].skyTop, TIME_THEMES[0].skyHorizon);
+
+        // Atmospheric Sky Dome Mesh with Gradient
+        const skyDomeCanvas = document.createElement('canvas');
+        skyDomeCanvas.width = 64;
+        skyDomeCanvas.height = 256;
+        const skyDomeTex = new THREE.CanvasTexture(skyDomeCanvas);
+        function updateSkyDomeTexture(theme) {
+            const g = skyDomeCanvas.getContext('2d');
+            const grad = g.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0, theme.skyTop);
+            grad.addColorStop(0.52, theme.skyHorizon);
+            grad.addColorStop(1, '#090d16');
+            g.fillStyle = grad;
+            g.fillRect(0, 0, 64, 256);
+            skyDomeTex.needsUpdate = true;
+        }
+        updateSkyDomeTexture(TIME_THEMES[0]);
+
+        const skyDomeMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(1650, 32, 24),
+            new THREE.MeshBasicMaterial({ map: skyDomeTex, side: THREE.BackSide, fog: false, depthWrite: false })
+        );
+        scene.add(skyDomeMesh);
+
+        // Lighting
+        const hemiLight = new THREE.HemisphereLight(TIME_THEMES[0].hemiSky, TIME_THEMES[0].hemiGround, 0.9);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(TIME_THEMES[0].sunColor, TIME_THEMES[0].sunIntensity);
+        dirLight.position.set(...TIME_THEMES[0].sunPos);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 40;
+        dirLight.shadow.camera.far = 1100;
+        const dCam = 320;
+        dirLight.shadow.camera.left = -dCam;
+        dirLight.shadow.camera.right = dCam;
+        dirLight.shadow.camera.top = dCam;
+        dirLight.shadow.camera.bottom = -dCam;
+        dirLight.shadow.bias = -0.0005;
+        scene.add(dirLight);
+
+        // Glowing Sun Sphere + Halo
+        const sunGeo = new THREE.SphereGeometry(46, 24, 24);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, fog: false });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        sunMesh.position.set(...TIME_THEMES[0].sunPos);
+        scene.add(sunMesh);
+
+        // High-Detail PBR Skyscraper Facade Generator (Albedo, Emissive & Roughness/Bump Maps)
+        function createPBRSkyscraperMaterial(facadeBase = '#1e293b', glassTint = '#38bdf8', litChance = 0.42) {
+            const cColor = document.createElement('canvas');
+            const cEmissive = document.createElement('canvas');
+            const cBump = document.createElement('canvas');
+            cColor.width = cEmissive.width = cBump.width = 256;
+            cColor.height = cEmissive.height = cBump.height = 512;
+
+            const gCol = cColor.getContext('2d');
+            const gEmi = cEmissive.getContext('2d');
+            const gBmp = cBump.getContext('2d');
+
+            // Structural frame base
+            gCol.fillStyle = facadeBase;
+            gCol.fillRect(0, 0, 256, 512);
+            gEmi.fillStyle = '#000000';
+            gEmi.fillRect(0, 0, 256, 512);
+            gBmp.fillStyle = '#ffffff'; // Raised mullions
+            gBmp.fillRect(0, 0, 256, 512);
+
+            const cols = 8;
+            const rows = 20;
+            const cellW = 256 / cols;
+            const cellH = 512 / rows;
+
+            for (let r = 0; r < rows; r++) {
+                for (let col = 0; col < cols; col++) {
+                    const x = col * cellW + 4;
+                    const y = r * cellH + 4;
+                    const w = cellW - 8;
+                    const h = cellH - 7;
+
+                    // Recessed glass pane in bump map
+                    gBmp.fillStyle = '#333333';
+                    gBmp.fillRect(x, y, w, h);
+
+                    const isLit = Math.random() < litChance;
+                    if (isLit) {
+                        const warm = Math.random() > 0.3;
+                        const roomColor = warm ? '#fef3c7' : glassTint;
+                        gCol.fillStyle = roomColor;
+                        gCol.fillRect(x, y, w, h);
+
+                        // Interior office blinds / floor ceiling detail
+                        gCol.fillStyle = 'rgba(15, 23, 42, 0.35)';
+                        gCol.fillRect(x, y + h * 0.6, w, h * 0.4);
+
+                        gEmi.fillStyle = warm ? '#f59e0b' : glassTint;
+                        gEmi.fillRect(x, y, w, h * 0.85);
+                    } else {
+                        // Reflective dark architectural curtain-wall glass
+                        const grad = gCol.createLinearGradient(x, y, x + w, y + h);
+                        grad.addColorStop(0, '#0f172a');
+                        grad.addColorStop(1, '#1e293b');
+                        gCol.fillStyle = grad;
+                        gCol.fillRect(x, y, w, h);
+                    }
+                }
+            }
+
+            const colorTex = new THREE.CanvasTexture(cColor);
+            const emissiveTex = new THREE.CanvasTexture(cEmissive);
+            const bumpTex = new THREE.CanvasTexture(cBump);
+            [colorTex, emissiveTex, bumpTex].forEach(t => {
+                t.wrapS = THREE.RepeatWrapping;
+                t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(1, 2);
+            });
+
+            return new THREE.MeshStandardMaterial({
+                map: colorTex,
+                emissive: 0xffffff,
+                emissiveMap: emissiveTex,
+                emissiveIntensity: 0.45,
+                bumpMap: bumpTex,
+                bumpScale: 0.35,
+                roughnessMap: bumpTex,
+                roughness: 0.22,
+                metalness: 0.72
+            });
+        }
+
+        // Realistic NYC Wet-Sheen Asphalt, Sidewalk Paving & Crosswalk Texture
+        function createStreetGridTexture() {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 512;
+            const g = c.getContext('2d');
+
+            // Dark asphalt roadbed
+            g.fillStyle = '#0f1420';
+            g.fillRect(0, 0, 512, 512);
+
+            // Subtle asphalt grain
+            g.fillStyle = 'rgba(255,255,255,0.025)';
+            for (let i = 0; i < 600; i++) {
+                g.fillRect((i * 73) % 512, (i * 137) % 512, 3, 3);
+            }
+
+            // Concrete Sidewalk Block with Curb Shadow
+            g.fillStyle = '#334155';
+            g.fillRect(62, 62, 388, 388);
+            g.fillStyle = '#475569';
+            g.fillRect(68, 68, 376, 376);
+
+            // Sidewalk paving slabs grid
+            g.strokeStyle = 'rgba(15, 23, 42, 0.3)';
+            g.lineWidth = 1.5;
+            for (let s = 68; s <= 444; s += 24) {
+                g.beginPath();
+                g.moveTo(s, 68); g.lineTo(s, 444);
+                g.moveTo(68, s); g.lineTo(444, s);
+                g.stroke();
+            }
+
+            // Double yellow avenue center lines
+            g.strokeStyle = '#eab308';
+            g.lineWidth = 3;
+            g.beginPath();
+            g.moveTo(0, 29); g.lineTo(512, 29);
+            g.moveTo(0, 34); g.lineTo(512, 34);
+            g.moveTo(29, 0); g.lineTo(29, 512);
+            g.moveTo(34, 0); g.lineTo(34, 512);
+            g.stroke();
+
+            // Crisp NYC Zebra Crosswalks
+            g.fillStyle = '#e2e8f0';
+            for (let i = 78; i < 434; i += 22) {
+                g.fillRect(i, 8, 11, 46);
+                g.fillRect(8, i, 46, 11);
+            }
+
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(16, 16);
+            return tex;
+        }
+
+        // ============================================================================
+        // 4. LIVELY 3D MANHATTAN CITY GENERATOR (Tiered Towers, Helicopters, Pedestrians, Steam)
+        // ============================================================================
+        const CITY_EXTENT = 720;
+        const BLOCK_STEP = 120;
+        const buildings3D = [];
+        const speedRings3D = [];
+        const drones3D = [];
+        const cars3D = [];
+        const pedestrians3D = [];
+        const helicopters3D = [];
+        const steamPuffs3D = [];
+        const particleBursts3D = [];
+        const releasedWebLines3D = [];
+
+        // Reflective Ground Plane
+        const groundGeo = new THREE.PlaneGeometry(CITY_EXTENT * 2.6, CITY_EXTENT * 2.6);
+        const groundMat = new THREE.MeshStandardMaterial({
+            map: createStreetGridTexture(),
+            roughness: 0.42,
+            metalness: 0.25
+        });
+        const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
+
+        // Shared PBR Skyscraper Materials
+        const buildingMaterials = [
+            createPBRSkyscraperMaterial('#0f172a', '#38bdf8', 0.42),
+            createPBRSkyscraperMaterial('#1e293b', '#f59e0b', 0.48),
+            createPBRSkyscraperMaterial('#1c1917', '#e2e8f0', 0.38),
+            createPBRSkyscraperMaterial('#172554', '#2dd4bf', 0.45),
+            createPBRSkyscraperMaterial('#27272a', '#f472b6', 0.40)
+        ];
+
+        // Dynamic NYC Times Square / Broadway Billboard Texture Generator
+        function createBillboardTexture(title, sub, bgHex, accentHex) {
+            const c = document.createElement('canvas');
+            c.width = 256;
+            c.height = 128;
+            const g = c.getContext('2d');
+
+            const grad = g.createLinearGradient(0, 0, 256, 128);
+            grad.addColorStop(0, bgHex);
+            grad.addColorStop(1, '#090d16');
+            g.fillStyle = grad;
+            g.fillRect(0, 0, 256, 128);
+
+            g.strokeStyle = accentHex;
+            g.lineWidth = 6;
+            g.strokeRect(6, 6, 244, 116);
+
+            g.fillStyle = '#ffffff';
+            g.font = '900 28px Orbitron, sans-serif';
+            g.textAlign = 'center';
+            g.fillText(title, 128, 62);
+
+            g.fillStyle = accentHex;
+            g.font = '700 16px Inter, sans-serif';
+            g.fillText(sub, 128, 95);
+
+            return new THREE.CanvasTexture(c);
+        }
+
+        const billboardMaterials = [
+            new THREE.MeshBasicMaterial({ map: createBillboardTexture('DAILY BUGLE', 'SPIDER-MAN MENACE OR HERO?', '#991b1b', '#fde047'), side: THREE.DoubleSide }),
+            new THREE.MeshBasicMaterial({ map: createBillboardTexture('OSCORP TECH', 'TOMORROW STARTS TODAY', '#065f46', '#34d399'), side: THREE.DoubleSide }),
+            new THREE.MeshBasicMaterial({ map: createBillboardTexture('STARK EXPO', 'MIDTOWN MANHATTAN', '#1e3a8a', '#38bdf8'), side: THREE.DoubleSide }),
+            new THREE.MeshBasicMaterial({ map: createBillboardTexture('BROADWAY NYC', 'ROGERS: THE MUSICAL', '#701a75', '#f472b6'), side: THREE.DoubleSide })
+        ];
+
+        // Helper to build Realistic 3D NYC Vehicles (Sloped Hoods, Rotating Wheels, Taxi Signs, Delivery Trucks)
+        function buildRealisticNYCVehicle(typeIndex) {
+            const carGroup = new THREE.Group();
+            const wheelGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.42, 14);
+            wheelGeo.rotateZ(Math.PI / 2);
+            const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.85 });
+            const rimMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.8, roughness: 0.2 });
+            const glassMat = new THREE.MeshStandardMaterial({ color: 0x090d16, metalness: 0.95, roughness: 0.08 });
+            const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.15 });
+            const headMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+            const tailMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+
+            const wheels = [];
+            function addWheels(zFront, zBack, xTrack = 1.65) {
+                [[-xTrack, zFront], [xTrack, zFront], [-xTrack, zBack], [xTrack, zBack]].forEach(([wx, wz]) => {
+                    const wGroup = new THREE.Group();
+                    wGroup.position.set(wx, 0.55, wz);
+                    const tire = new THREE.Mesh(wheelGeo, tireMat);
+                    const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.45, 10).rotateZ(Math.PI / 2), rimMat);
+                    wGroup.add(tire, rim);
+                    carGroup.add(wGroup);
+                    wheels.push(wGroup);
+                });
+            }
+
+            let sirenMatR = null, sirenMatB = null;
+            let baseSpeed = 0.82;
+
+            if (typeIndex === 'BUS') {
+                // NYC MTA Articulated City Bus
+                baseSpeed = 0.56;
+                const busLen = 14.2;
+                const lowerBody = new THREE.Mesh(
+                    new THREE.BoxGeometry(3.5, 1.5, busLen),
+                    new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.4 })
+                );
+                lowerBody.position.y = 1.3;
+                const blueStripe = new THREE.Mesh(
+                    new THREE.BoxGeometry(3.56, 0.48, busLen + 0.04),
+                    new THREE.MeshBasicMaterial({ color: 0x0284c7 })
+                );
+                blueStripe.position.y = 1.55;
+                const upperWindowBand = new THREE.Mesh(
+                    new THREE.BoxGeometry(3.42, 1.25, busLen - 0.3),
+                    glassMat
+                );
+                upperWindowBand.position.y = 2.55;
+                const roofCap = new THREE.Mesh(
+                    new THREE.BoxGeometry(3.3, 0.35, busLen - 0.5),
+                    new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5 })
+                );
+                roofCap.position.y = 3.32;
+                // Glowing NYC Route Sign on Front
+                const routeSign = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.2, 0.38, 0.15),
+                    new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+                );
+                routeSign.position.set(0, 3.1, busLen * 0.5);
+
+                carGroup.add(lowerBody, blueStripe, upperWindowBand, roofCap, routeSign);
+                addWheels(4.6, -4.6, 1.72);
+                const head = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.32, 0.18), headMat);
+                head.position.set(0, 0.95, busLen * 0.5 + 0.05);
+                const tail = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.32, 0.18), tailMat);
+                tail.position.set(0, 0.95, -busLen * 0.5 - 0.05);
+                carGroup.add(head, tail);
+
+            } else if (typeIndex === 'TRUCK') {
+                // NYC Box Delivery Truck (Daily Bugle / Moving Van)
+                baseSpeed = 0.66;
+                const cab = new THREE.Mesh(
+                    new THREE.BoxGeometry(3.1, 2.2, 3.0),
+                    new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35, metalness: 0.5 })
+                );
+                cab.position.set(0, 1.65, 3.6);
+                const windshield = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.95, 0.2), glassMat);
+                windshield.position.set(0, 2.1, 5.05);
+                const cargoBox = new THREE.Mesh(
+                    new THREE.BoxGeometry(3.45, 3.3, 7.6),
+                    new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.45, metalness: 0.3 })
+                );
+                cargoBox.position.set(0, 2.35, -1.8);
+                carGroup.add(cab, windshield, cargoBox);
+                addWheels(3.7, -3.6, 1.68);
+
+            } else {
+                // Realistic Sculpted Sedan / NYC Yellow Taxi / NYPD Cruiser / SUV
+                const isTaxi = typeIndex === 'TAXI';
+                const isPolice = typeIndex === 'POLICE';
+                baseSpeed = isPolice ? 1.18 : (isTaxi ? 0.88 : 0.80);
+
+                const bodyColor = isTaxi ? 0xfacc15 : (isPolice ? 0xf8fafc : 0x1e293b);
+                const paintMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.18, metalness: 0.72 });
+
+                // Lower Chassis Skirt
+                const chassis = new THREE.Mesh(new THREE.BoxGeometry(3.25, 0.85, 7.6), paintMat);
+                chassis.position.y = 0.92;
+                carGroup.add(chassis);
+
+                // NYPD Blue Side Stripe
+                if (isPolice) {
+                    const nypdStripe = new THREE.Mesh(
+                        new THREE.BoxGeometry(3.32, 0.28, 7.2),
+                        new THREE.MeshBasicMaterial({ color: 0x1d4ed8 })
+                    );
+                    nypdStripe.position.y = 0.98;
+                    carGroup.add(nypdStripe);
+                }
+
+                // Aerodynamic Sloped Hood & Trunk Deck
+                const hood = new THREE.Mesh(new THREE.BoxGeometry(3.05, 0.35, 2.3), paintMat);
+                hood.position.set(0, 1.38, 2.45);
+                hood.rotation.x = 0.10;
+                carGroup.add(hood);
+
+                // Greenhouse Cabin & Angled Windshields
+                const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.98, 3.6), paintMat);
+                cabin.position.set(0, 1.82, -0.15);
+                const glassWrap = new THREE.Mesh(new THREE.BoxGeometry(2.82, 0.76, 3.3), glassMat);
+                glassWrap.position.set(0, 1.84, -0.15);
+                const frontWindshield = new THREE.Mesh(new THREE.BoxGeometry(2.68, 0.88, 0.18), glassMat);
+                frontWindshield.position.set(0, 1.80, 1.68);
+                frontWindshield.rotation.x = -0.42;
+                const rearWindshield = new THREE.Mesh(new THREE.BoxGeometry(2.68, 0.82, 0.18), glassMat);
+                rearWindshield.position.set(0, 1.80, -1.98);
+                rearWindshield.rotation.x = 0.42;
+                carGroup.add(cabin, glassWrap, frontWindshield, rearWindshield);
+
+                // Side Mirrors & Chrome Bumpers + Grille
+                [-1.72, 1.72].forEach(mx => {
+                    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.22), paintMat);
+                    mirror.position.set(mx, 1.52, 1.2);
+                    carGroup.add(mirror);
+                });
+                const grille = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.42, 0.15), chromeMat);
+                grille.position.set(0, 0.92, 3.82);
+                const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.28, 0.35), chromeMat);
+                frontBumper.position.set(0, 0.62, 3.78);
+                const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(3.35, 0.28, 0.35), chromeMat);
+                rearBumper.position.set(0, 0.62, -3.78);
+                carGroup.add(grille, frontBumper, rearBumper);
+
+                // Dual Headlights & Taillights
+                [-1.15, 1.15].forEach(lx => {
+                    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.28, 0.18), headMat);
+                    hl.position.set(lx, 1.05, 3.80);
+                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.28, 0.18), tailMat);
+                    tl.position.set(lx, 1.05, -3.80);
+                    carGroup.add(hl, tl);
+                });
+
+                // NYC Yellow Cab Illuminated Roof Medallion Sign
+                if (isTaxi) {
+                    const taxiSign = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.15, 0.34, 0.55),
+                        new THREE.MeshBasicMaterial({ color: 0xfef08a })
+                    );
+                    taxiSign.position.set(0, 2.46, 0.1);
+                    carGroup.add(taxiSign);
+                }
+
+                // NYPD Strobe Lightbar
+                if (isPolice) {
+                    sirenMatR = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                    sirenMatB = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+                    const barR = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.26, 0.42), sirenMatR);
+                    const barB = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.26, 0.42), sirenMatB);
+                    barR.position.set(-0.55, 2.45, -0.1);
+                    barB.position.set(0.55, 2.45, -0.1);
+                    carGroup.add(barR, barB);
+                }
+
+                addWheels(2.35, -2.35, 1.62);
+            }
+
+            return { carGroup, wheels, sirenMatR, sirenMatB, baseSpeed };
+        }
+
+        function generate3DCity() {
+            let bIndex = 0;
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.5 });
+            const hvacMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.6, metalness: 0.4 });
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 });
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.75 });
+            const lampMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+
+            for (let gx = -CITY_EXTENT; gx <= CITY_EXTENT; gx += BLOCK_STEP) {
+                for (let gz = -CITY_EXTENT; gz <= CITY_EXTENT; gz += BLOCK_STEP) {
+                    const distFromCenter = Math.hypot(gx, gz);
+                    // Strictly align skyscrapers to the Manhattan Block Grid so avenues form wide, clear canyons!
+                    const w = 52 + ((bIndex * 7) % 14);
+                    const d = 52 + ((bIndex * 11) % 14);
+                    let h = 105 + ((bIndex * 43) % 210);
+                    if (distFromCenter < 240) h += 80;
+
+                    const bx = gx;
+                    const bz = gz;
+
+                    // Special Iconic NYC Landmarks in Midtown!
+                    const isEmpireState = (gx === 0 && gz === -BLOCK_STEP);
+                    const isAvengersTower = (gx === BLOCK_STEP && gz === 0);
+                    if (isEmpireState) h = 355;
+                    if (isAvengersTower) h = 325;
+
+                    const mat = buildingMaterials[bIndex % buildingMaterials.length];
+                    const geo = new THREE.BoxGeometry(w, h, d);
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(bx, h / 2, bz);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    scene.add(mesh);
+
+                    // Rooftop Architectural Cornice / Ledge
+                    const crownMesh = new THREE.Mesh(new THREE.BoxGeometry(w + 2.4, 3.2, d + 2.4), trimMat);
+                    crownMesh.position.set(bx, h + 1.4, bz);
+                    scene.add(crownMesh);
+
+                    // Architectural Setback Tiers, NYC Landmarks & Times Square Billboards
+                    let spireHeight = 0;
+                    let totalRoofH = h;
+
+                    if (isEmpireState) {
+                        // Empire State Building Multi-Tier Art-Deco Setbacks & Iconic Illuminated Spire
+                        const t1 = new THREE.Mesh(new THREE.BoxGeometry(w * 0.72, 42, d * 0.72), mat);
+                        t1.position.set(bx, h + 21, bz);
+                        const t2 = new THREE.Mesh(new THREE.BoxGeometry(w * 0.46, 36, d * 0.46), mat);
+                        t2.position.set(bx, h + 60, bz);
+                        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 3.8, 78, 12), trimMat);
+                        mast.position.set(bx, h + 117, bz);
+                        const glowTop = new THREE.Mesh(new THREE.SphereGeometry(2.8, 12, 12), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+                        glowTop.position.set(bx, h + 157, bz);
+                        scene.add(t1, t2, mast, glowTop);
+                        totalRoofH = h + 78;
+                        spireHeight = 78;
+                    } else if (isAvengersTower) {
+                        // Stark / Avengers Tower Cantilevered Helipad Deck & Glowing Emblem Ring
+                        const deck = new THREE.Mesh(new THREE.BoxGeometry(w * 1.28, 10, d * 0.85), trimMat);
+                        deck.position.set(bx + w * 0.14, h + 5, bz);
+                        const starkRing = new THREE.Mesh(
+                            new THREE.TorusGeometry(9.5, 1.3, 12, 32),
+                            new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+                        );
+                        starkRing.position.set(bx, h - 24, bz + d * 0.5 + 1.2);
+                        scene.add(deck, starkRing);
+                        totalRoofH = h + 10;
+                    } else if (bIndex % 3 === 0 && h > 160) {
+                        // Art-Deco / Modern Upper Setback Tier
+                        const tierH = 26 + (bIndex % 4) * 9;
+                        const tierMesh = new THREE.Mesh(new THREE.BoxGeometry(w * 0.68, tierH, d * 0.68), mat);
+                        tierMesh.position.set(bx, h + tierH / 2, bz);
+                        tierMesh.castShadow = true;
+                        scene.add(tierMesh);
+                        totalRoofH = h + tierH;
+                    } else {
+                        // Rooftop HVAC Units & NYC Wooden Water Tower
+                        const hvac = new THREE.Mesh(new THREE.BoxGeometry(8, 4.5, 10), hvacMat);
+                        hvac.position.set(bx - w * 0.22, h + 3.5, bz - d * 0.2);
+                        scene.add(hvac);
+
+                        if (bIndex % 4 === 1) {
+                            const wtGroup = new THREE.Group();
+                            wtGroup.position.set(bx + w * 0.22, h + 2, bz + d * 0.22);
+                            const tank = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 6, 12), woodMat);
+                            tank.position.y = 5;
+                            const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.5, 12), trimMat);
+                            roof.position.y = 9.2;
+                            wtGroup.add(tank, roof);
+                            scene.add(wtGroup);
+                        }
+                    }
+
+                    // Times Square / Midtown Glowing Neon Billboards on Lower Building Facades
+                    if (distFromCenter < 380 && bIndex % 2 === 0) {
+                        const bbMat = billboardMaterials[bIndex % billboardMaterials.length];
+                        const bbPlane = new THREE.Mesh(new THREE.PlaneGeometry(28, 14), bbMat);
+                        const faceZ = (bIndex % 4 === 0) ? (bz + d * 0.5 + 0.6) : (bz - d * 0.5 - 0.6);
+                        bbPlane.position.set(bx, 34 + (bIndex % 3) * 14, faceZ);
+                        scene.add(bbPlane);
+                    }
+
+                    if (!isEmpireState && bIndex % 6 === 0) {
+                        spireHeight = 52;
+                        const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 2.4, spireHeight, 8), trimMat);
+                        spire.position.set(bx, totalRoofH + spireHeight / 2, bz);
+                        scene.add(spire);
+
+                        const beacon = new THREE.Mesh(
+                            new THREE.SphereGeometry(2.0, 10, 10),
+                            new THREE.MeshBasicMaterial({ color: bIndex % 12 === 0 ? 0x38bdf8 : 0xef4444 })
+                        );
+                        beacon.position.set(bx, totalRoofH + spireHeight + 1.5, bz);
+                        scene.add(beacon);
+                    }
+
+                    // Street-Level Sidewalk Trees, Yellow NYC Traffic Light Gantries & Streetlamps
+                    if (distFromCenter < 560 && bIndex % 2 === 0) {
+                        const cornerX = bx + w / 2 + 5;
+                        const cornerZ = bz + d / 2 + 5;
+                        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.55, 4.5, 6), woodMat);
+                        trunk.position.set(cornerX, 2.2, cornerZ);
+                        const canopy = new THREE.Mesh(new THREE.SphereGeometry(2.8, 8, 8), foliageMat);
+                        canopy.position.set(cornerX, 5.5, cornerZ);
+                        canopy.scale.set(1, 1.25, 1);
+                        scene.add(trunk, canopy);
+
+                        // NYC Yellow Traffic Light Gantry Arm overhanging the intersection
+                        const tlPole = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 9.2, 6), trimMat);
+                        tlPole.position.set(bx - w / 2 - 5, 4.6, bz + d / 2 + 5);
+                        const tlArm = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 9.5, 6), trimMat);
+                        tlArm.rotation.z = Math.PI / 2;
+                        tlArm.position.set(bx - w / 2 - 9.5, 8.8, bz + d / 2 + 5);
+                        const tlBox = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.1, 0.8), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+                        tlBox.position.set(bx - w / 2 - 13.5, 7.9, bz + d / 2 + 5);
+                        const signalDot = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.35, 8, 8),
+                            new THREE.MeshBasicMaterial({ color: bIndex % 4 === 0 ? 0xef4444 : 0x22c55e })
+                        );
+                        signalDot.position.set(bx - w / 2 - 13.5, 7.9, bz + d / 2 + 5.5);
+                        scene.add(tlPole, tlArm, tlBox, signalDot);
+                    }
+
+                    // Precompute 3D Web Anchor Points along upper facades, corners & spire
+                    const anchors = [];
+                    const levels = [h * 0.48, h * 0.72, h, totalRoofH];
+                    levels.forEach(ay => {
+                        if (ay < 32) return;
+                        anchors.push(new THREE.Vector3(bx - w / 2, ay, bz - d / 2));
+                        anchors.push(new THREE.Vector3(bx + w / 2, ay, bz - d / 2));
+                        anchors.push(new THREE.Vector3(bx - w / 2, ay, bz + d / 2));
+                        anchors.push(new THREE.Vector3(bx + w / 2, ay, bz + d / 2));
+                        anchors.push(new THREE.Vector3(bx, ay, bz - d / 2));
+                        anchors.push(new THREE.Vector3(bx, ay, bz + d / 2));
+                        anchors.push(new THREE.Vector3(bx - w / 2, ay, bz));
+                        anchors.push(new THREE.Vector3(bx + w / 2, ay, bz));
+                    });
+                    if (spireHeight > 0) {
+                        anchors.push(new THREE.Vector3(bx, totalRoofH + spireHeight, bz));
+                    }
+
+                    buildings3D.push({
+                        id: bIndex,
+                        x: bx,
+                        z: bz,
+                        w: w,
+                        d: d,
+                        h: h,
+                        minX: bx - w / 2,
+                        maxX: bx + w / 2,
+                        minZ: bz - d / 2,
+                        maxZ: bz + d / 2,
+                        anchors: anchors
+                    });
+
+                    if (bIndex % 6 === 2 && distFromCenter < 560) {
+                        createSpeedRing3D(bx + BLOCK_STEP * 0.5, Math.min(185, h * 0.72), bz);
+                    }
+                    if (bIndex % 5 === 1 && distFromCenter < 580) {
+                        createCombatDrone3D(bx, totalRoofH + 22 + Math.random() * 25, bz);
+                    }
+
+                    bIndex++;
+                }
+            }
+
+            // Spawn Realistic 3D NYC Traffic: Yellow Cabs (with Roof Medallions), NYPD Cruisers, MTA Buses & Delivery Trucks
+            for (let i = 0; i < 68; i++) {
+                let vType = 'TAXI';
+                if (i % 7 === 0) vType = 'POLICE';
+                else if (i % 8 === 0) vType = 'BUS';
+                else if (i % 9 === 0) vType = 'TRUCK';
+                else if (i % 3 === 1) vType = 'SEDAN';
+
+                const built = buildRealisticNYCVehicle(vType);
+                const carGroup = built.carGroup;
+
+                const alongX = Math.random() > 0.5;
+                const dir = Math.random() > 0.5 ? 1 : -1;
+                const laneOffset = dir * 7.2;
+                const avenueCoord = (Math.floor((Math.random() - 0.5) * 10)) * BLOCK_STEP + BLOCK_STEP * 0.5 + laneOffset;
+                const posCoord = (Math.random() - 0.5) * CITY_EXTENT * 1.8;
+
+                if (alongX) {
+                    carGroup.position.set(posCoord, 0, avenueCoord);
+                    carGroup.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+                } else {
+                    carGroup.position.set(avenueCoord, 0, posCoord);
+                    carGroup.rotation.y = dir > 0 ? 0 : Math.PI;
+                }
+
+                scene.add(carGroup);
+                cars3D.push({
+                    mesh: carGroup,
+                    wheels: built.wheels,
+                    alongX: alongX,
+                    speed: built.baseSpeed * dir,
+                    sirenMatR: built.sirenMatR,
+                    sirenMatB: built.sirenMatB
+                });
+            }
+
+            // Spawn 85 Animated 3D Pedestrians Strolling Along Sidewalks
+            const coatColors = [0xe2e8f0, 0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x64748b, 0xa855f7];
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 });
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+
+            for (let i = 0; i < 85; i++) {
+                const pedGroup = new THREE.Group();
+                const torsoMat = new THREE.MeshStandardMaterial({ color: coatColors[i % coatColors.length], roughness: 0.7 });
+
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.05, 0.4), torsoMat);
+                torso.position.y = 1.45;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), headMat);
+                head.position.y = 2.22;
+
+                const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.9, 0.26), legMat);
+                leftLeg.position.set(-0.16, 0.45, 0);
+                const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.9, 0.26), legMat);
+                rightLeg.position.set(0.16, 0.45, 0);
+
+                pedGroup.add(torso, head, leftLeg, rightLeg);
+
+                const alongX = i % 2 === 0;
+                const dir = Math.random() > 0.5 ? 1 : -1;
+                const blockCenter = (Math.floor((Math.random() - 0.5) * 9)) * BLOCK_STEP;
+                const sidewalkCoord = blockCenter + (Math.random() > 0.5 ? 36 : -36);
+                const posCoord = (Math.random() - 0.5) * CITY_EXTENT * 1.4;
+
+                if (alongX) {
+                    pedGroup.position.set(posCoord, 0, sidewalkCoord);
+                    pedGroup.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+                } else {
+                    pedGroup.position.set(sidewalkCoord, 0, posCoord);
+                    pedGroup.rotation.y = dir > 0 ? 0 : Math.PI;
+                }
+
+                scene.add(pedGroup);
+                pedestrians3D.push({
+                    group: pedGroup,
+                    leftLeg: leftLeg,
+                    rightLeg: rightLeg,
+                    alongX: alongX,
+                    speed: (0.09 + Math.random() * 0.05) * dir,
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+
+            // Spawn 4 Patrolling 3D NYPD / News Helicopters with Spinning Rotors & Searchlights
+            for (let i = 0; i < 4; i++) {
+                const heliGroup = new THREE.Group();
+                const hullMat = new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0x1e293b : 0x0284c7, metalness: 0.7, roughness: 0.25 });
+                const cabin = new THREE.Mesh(new THREE.SphereGeometry(3.4, 14, 12), hullMat);
+                cabin.scale.set(0.85, 0.85, 1.65);
+
+                const tailBoom = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.9, 10, 8), hullMat);
+                tailBoom.rotation.x = Math.PI / 2;
+                tailBoom.position.set(0, 0.4, -7.5);
+
+                const rotorGroup = new THREE.Group();
+                rotorGroup.position.set(0, 3.2, 0);
+                const blade1 = new THREE.Mesh(new THREE.BoxGeometry(15, 0.12, 0.65), new THREE.MeshBasicMaterial({ color: 0xcbd5e1 }));
+                const blade2 = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.12, 15), new THREE.MeshBasicMaterial({ color: 0xcbd5e1 }));
+                rotorGroup.add(blade1, blade2);
+
+                // Volumetric-style Searchlight Cone
+                const beamGeo = new THREE.ConeGeometry(16, 85, 16, 1, true);
+                const beamMat = new THREE.MeshBasicMaterial({
+                    color: 0xfef08a,
+                    transparent: true,
+                    opacity: 0.09,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                const beam = new THREE.Mesh(beamGeo, beamMat);
+                beam.position.set(0, -40, 14);
+                beam.rotation.x = -0.32;
+
+                heliGroup.add(cabin, tailBoom, rotorGroup, beam);
+                scene.add(heliGroup);
+
+                helicopters3D.push({
+                    group: heliGroup,
+                    rotor: rotorGroup,
+                    radius: 210 + i * 95,
+                    altitude: 255 + i * 32,
+                    angle: (i / 4) * Math.PI * 2,
+                    speed: 0.0022 + i * 0.0004
+                });
+            }
+
+            // Spawn NYC Manhole Steam Vents along the Streets
+            const steamGeo = new THREE.SphereGeometry(2.2, 8, 8);
+            for (let i = 0; i < 26; i++) {
+                const steamMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.25, depthWrite: false });
+                const puff = new THREE.Mesh(steamGeo, steamMat);
+                const sx = (Math.floor((Math.random() - 0.5) * 8)) * BLOCK_STEP + BLOCK_STEP * 0.5;
+                const sz = (Math.floor((Math.random() - 0.5) * 8)) * BLOCK_STEP + (Math.random() - 0.5) * 60;
+                puff.position.set(sx, Math.random() * 14, sz);
+                scene.add(puff);
+                steamPuffs3D.push({ mesh: puff, mat: steamMat, baseX: sx, baseZ: sz });
+            }
+        }
+
+        function createSpeedRing3D(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const outerGeo = new THREE.TorusGeometry(11.5, 0.85, 12, 32);
+            const outerMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+            const outerMesh = new THREE.Mesh(outerGeo, outerMat);
+
+            const innerGeo = new THREE.TorusGeometry(9.2, 0.45, 10, 28);
+            const innerMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+            const innerMesh = new THREE.Mesh(innerGeo, innerMat);
+
+            group.add(outerMesh, innerMesh);
+            if (Math.random() > 0.5) group.rotation.y = Math.PI / 2;
+            scene.add(group);
+
+            speedRings3D.push({
+                group: group,
+                innerMesh: innerMesh,
+                x: x,
+                y: y,
+                z: z,
+                radius: 13.5,
+                cooldown: 0
+            });
+        }
+
+        function createCombatDrone3D(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const coreGeo = new THREE.SphereGeometry(2.6, 16, 16);
+            const coreMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+
+            const eyeGeo = new THREE.SphereGeometry(1.15, 12, 12);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+            const eye = new THREE.Mesh(eyeGeo, eyeMat);
+            eye.position.set(0, 0, 2.1);
+
+            const ringGeo = new THREE.TorusGeometry(3.8, 0.32, 8, 24);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+
+            group.add(core, eye, ring);
+            scene.add(group);
+
+            drones3D.push({
+                group: group,
+                coreMat: coreMat,
+                eyeMat: eyeMat,
+                ring: ring,
+                baseX: x,
+                baseY: y,
+                baseZ: z,
+                phase: Math.random() * Math.PI * 2,
+                webbed: false,
+                respawnTimer: 0,
+                attackTimer: 120 + Math.random() * 120
+            });
+        }
+
+        // ============================================================================
+        // 5. ANATOMICALLY SCULPTED 3D SPIDER-MAN MODEL & PROCEDURAL SUIT TEXTURES
+        // ============================================================================
+        const suitPrimaryCanvas = document.createElement('canvas');
+        suitPrimaryCanvas.width = 512;
+        suitPrimaryCanvas.height = 512;
+        const suitPrimaryTex = new THREE.CanvasTexture(suitPrimaryCanvas);
+        suitPrimaryTex.wrapS = THREE.RepeatWrapping;
+        suitPrimaryTex.wrapT = THREE.RepeatWrapping;
+
+        const suitMaskCanvas = document.createElement('canvas');
+        suitMaskCanvas.width = 512;
+        suitMaskCanvas.height = 512;
+        const suitMaskTex = new THREE.CanvasTexture(suitMaskCanvas);
+
+        const suitSecondaryCanvas = document.createElement('canvas');
+        suitSecondaryCanvas.width = 256;
+        suitSecondaryCanvas.height = 256;
+        const suitSecondaryTex = new THREE.CanvasTexture(suitSecondaryCanvas);
+        suitSecondaryTex.wrapS = THREE.RepeatWrapping;
+        suitSecondaryTex.wrapT = THREE.RepeatWrapping;
+
+        function hexToRgbString(hex, alpha = 1) {
+            const r = (hex >> 16) & 255;
+            const g = (hex >> 8) & 255;
+            const b = hex & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function updateProceduralSuitTextures(suit) {
+            // 1. Primary Webbed Fabric Texture (Micro-Honeycomb + Architectural Web Pattern)
+            const g1 = suitPrimaryCanvas.getContext('2d');
+            const w = 512, h = 512;
+            g1.fillStyle = hexToRgbString(suit.primary, 1);
+            g1.fillRect(0, 0, w, h);
+
+            // Subtle muscular shading gradient
+            const grad = g1.createRadialGradient(w * 0.5, h * 0.45, 30, w * 0.5, h * 0.5, w * 0.65);
+            grad.addColorStop(0, 'rgba(255,255,255,0.12)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.26)');
+            g1.fillStyle = grad;
+            g1.fillRect(0, 0, w, h);
+
+            // Micro-honeycomb athletic fabric weave
+            g1.strokeStyle = 'rgba(0, 0, 0, 0.11)';
+            g1.lineWidth = 1;
+            const step = 12;
+            for (let y = 0; y < h; y += step) {
+                for (let x = 0; x < w; x += step) {
+                    const ox = (y / step) % 2 === 0 ? 0 : step * 0.5;
+                    g1.strokeRect(x + ox, y, step * 0.8, step * 0.8);
+                }
+            }
+
+            if (suit.hasWebs) {
+                g1.strokeStyle = suit.webColor;
+                g1.lineWidth = 3.2;
+                // Vertical web ribs
+                const cols = 8;
+                for (let i = 0; i <= cols; i++) {
+                    const x = (i / cols) * w;
+                    g1.beginPath();
+                    g1.moveTo(x, 0);
+                    g1.lineTo(x, h);
+                    g1.stroke();
+                }
+                // Scalloped horizontal web arches
+                const rows = 8;
+                const cellW = w / cols;
+                const cellH = h / rows;
+                for (let r = 0; r <= rows; r++) {
+                    const y = r * cellH;
+                    for (let c = 0; c < cols; c++) {
+                        const x0 = c * cellW;
+                        g1.beginPath();
+                        g1.moveTo(x0, y);
+                        g1.quadraticCurveTo(x0 + cellW * 0.5, y + cellH * 0.24, x0 + cellW, y);
+                        g1.stroke();
+                    }
+                }
+            } else {
+                // Symbiote organic bio-sheen veins
+                g1.strokeStyle = 'rgba(255,255,255,0.06)';
+                g1.lineWidth = 2;
+                for (let i = 0; i < 16; i++) {
+                    g1.beginPath();
+                    g1.moveTo((i / 16) * w, 0);
+                    g1.bezierCurveTo(w * 0.3, h * 0.3, w * 0.7, h * 0.7, (i / 16) * w, h);
+                    g1.stroke();
+                }
+            }
+            suitPrimaryTex.needsUpdate = true;
+
+            // 2. Radial Mask Webbing Texture (Converges toward bridge of nose)
+            const gm = suitMaskCanvas.getContext('2d');
+            gm.fillStyle = hexToRgbString(suit.primary, 1);
+            gm.fillRect(0, 0, w, h);
+            gm.fillStyle = grad;
+            gm.fillRect(0, 0, w, h);
+
+            if (suit.hasWebs) {
+                gm.strokeStyle = suit.webColor;
+                gm.lineWidth = 3.0;
+                const cx = w * 0.5, cy = h * 0.54;
+                const spokes = 18;
+                for (let i = 0; i < spokes; i++) {
+                    const ang = (i / spokes) * Math.PI * 2;
+                    gm.beginPath();
+                    gm.moveTo(cx, cy);
+                    gm.lineTo(cx + Math.cos(ang) * w * 0.75, cy + Math.sin(ang) * h * 0.75);
+                    gm.stroke();
+                }
+                for (let ring = 28; ring < w * 0.7; ring += 34) {
+                    for (let i = 0; i < spokes; i++) {
+                        const a1 = (i / spokes) * Math.PI * 2;
+                        const a2 = ((i + 1) / spokes) * Math.PI * 2;
+                        const midA = (a1 + a2) * 0.5;
+                        gm.beginPath();
+                        gm.moveTo(cx + Math.cos(a1) * ring, cy + Math.sin(a1) * ring);
+                        gm.quadraticCurveTo(
+                            cx + Math.cos(midA) * (ring * 0.91),
+                            cy + Math.sin(midA) * (ring * 0.91),
+                            cx + Math.cos(a2) * ring,
+                            cy + Math.sin(a2) * ring
+                        );
+                        gm.stroke();
+                    }
+                }
+            }
+            suitMaskTex.needsUpdate = true;
+
+            // 3. Secondary Satin-Blue Athletic Panel Texture (Hexagonal micro-weave + seam lines)
+            const g2 = suitSecondaryCanvas.getContext('2d');
+            const sw = 256, sh = 256;
+            g2.fillStyle = hexToRgbString(suit.secondary, 1);
+            g2.fillRect(0, 0, sw, sh);
+
+            const secGrad = g2.createLinearGradient(0, 0, sw, sh);
+            secGrad.addColorStop(0, 'rgba(255,255,255,0.14)');
+            secGrad.addColorStop(0.5, 'rgba(0,0,0,0.05)');
+            secGrad.addColorStop(1, 'rgba(0,0,0,0.28)');
+            g2.fillStyle = secGrad;
+            g2.fillRect(0, 0, sw, sh);
+
+            g2.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+            g2.lineWidth = 1;
+            for (let y = 0; y < sh; y += 8) {
+                for (let x = 0; x < sw; x += 8) {
+                    g2.strokeRect(x, y, 6, 6);
+                }
+            }
+            suitSecondaryTex.needsUpdate = true;
+        }
+
+        updateProceduralSuitTextures(SUITS[0]);
+
+        const spideyMaterials = {
+            primary: new THREE.MeshStandardMaterial({
+                map: suitPrimaryTex,
+                roughness: SUITS[0].roughness,
+                metalness: SUITS[0].metalness
+            }),
+            mask: new THREE.MeshStandardMaterial({
+                map: suitMaskTex,
+                roughness: SUITS[0].roughness,
+                metalness: SUITS[0].metalness
+            }),
+            secondary: new THREE.MeshStandardMaterial({
+                map: suitSecondaryTex,
+                roughness: SUITS[0].roughness + 0.05,
+                metalness: SUITS[0].metalness + 0.08
+            }),
+            emblem: new THREE.MeshStandardMaterial({
+                color: SUITS[0].emblem,
+                roughness: 0.25,
+                metalness: 0.5
+            }),
+            backEmblem: new THREE.MeshStandardMaterial({
+                color: SUITS[0].backEmblem,
+                roughness: 0.3,
+                metalness: 0.3
+            }),
+            eyeRim: new THREE.MeshStandardMaterial({
+                color: SUITS[0].eyeRim,
+                roughness: 0.2,
+                metalness: 0.4
+            }),
+            eyeFill: new THREE.MeshBasicMaterial({
+                color: SUITS[0].eyeFill
+            }),
+            webShooterMetal: new THREE.MeshStandardMaterial({
+                color: 0xcbd5e1,
+                metalness: 0.85,
+                roughness: 0.2
+            }),
+            bootSole: new THREE.MeshStandardMaterial({
+                color: 0x0f172a,
+                roughness: 0.8
+            }),
+            waldoGold: new THREE.MeshStandardMaterial({
+                color: 0xfbbf24,
+                metalness: 0.88,
+                roughness: 0.18
+            })
+        };
+
+        const spideyRig = {
+            root: new THREE.Group(),
+            pelvis: new THREE.Group(),
+            torso: new THREE.Group(),
+            neck: new THREE.Group(),
+            head: new THREE.Group(),
+            leftEyeLens: new THREE.Group(),
+            rightEyeLens: new THREE.Group(),
+            leftShoulder: new THREE.Group(),
+            leftElbow: new THREE.Group(),
+            leftHand: new THREE.Group(),
+            leftFingers: new THREE.Group(),
+            rightShoulder: new THREE.Group(),
+            rightElbow: new THREE.Group(),
+            rightHand: new THREE.Group(),
+            rightFingers: new THREE.Group(),
+            leftHip: new THREE.Group(),
+            leftKnee: new THREE.Group(),
+            leftAnkle: new THREE.Group(),
+            rightHip: new THREE.Group(),
+            rightKnee: new THREE.Group(),
+            rightAnkle: new THREE.Group(),
+            waldoesGroup: new THREE.Group(),
+            waldoes: [],
+            spiderSenseHalo: new THREE.Group()
+        };
+
+        function buildArticulated3DSpiderMan() {
+            const R = spideyRig;
+            R.root.add(R.pelvis);
+
+            // 1. SCULPTED PELVIS, GLUTES & V-SHAPED SPIDER-BELT
+            const pelvisCore = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.54, 0.46, 0.52, 20),
+                spideyMaterials.secondary
+            );
+            pelvisCore.scale.set(1.05, 1, 0.82);
+            R.pelvis.add(pelvisCore);
+
+            // Iconic Red V-Shaped Spider-Belt wrapping the waist
+            const beltRing = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.57, 0.53, 0.24, 20),
+                spideyMaterials.primary
+            );
+            beltRing.scale.set(1.06, 1, 0.84);
+            beltRing.position.y = 0.18;
+            R.pelvis.add(beltRing);
+
+            const beltVPoint = new THREE.Mesh(
+                new THREE.ConeGeometry(0.28, 0.34, 4),
+                spideyMaterials.primary
+            );
+            beltVPoint.rotation.x = Math.PI;
+            beltVPoint.rotation.y = Math.PI / 4;
+            beltVPoint.scale.set(1.2, 1, 0.4);
+            beltVPoint.position.set(0, 0.02, 0.42);
+            R.pelvis.add(beltVPoint);
+
+            // Sculpted Glutes
+            [-1, 1].forEach(side => {
+                const glute = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.29, 14, 14),
+                    spideyMaterials.secondary
+                );
+                glute.scale.set(0.95, 1.05, 0.85);
+                glute.position.set(side * 0.23, -0.06, -0.18);
+                R.pelvis.add(glute);
+            });
+
+            // 2. ATHLETIC V-TAPER TORSO, SCULPTED PECTORALS & 6-PACK ABS
+            R.pelvis.add(R.torso);
+            R.torso.position.set(0, 0.26, 0);
+
+            // Lower Abdomen & Blue Obliques
+            const abCore = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.66, 0.53, 0.82, 20),
+                spideyMaterials.secondary
+            );
+            abCore.scale.set(1.04, 1, 0.78);
+            abCore.position.y = 0.40;
+            R.torso.add(abCore);
+
+            // Central Red Webbed Torso Strip over Abs
+            const frontRedAbPanel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.42, 0.32, 0.84, 16, 1, false, -Math.PI * 0.28, Math.PI * 0.56),
+                spideyMaterials.primary
+            );
+            frontRedAbPanel.scale.set(1.05, 1, 1.32);
+            frontRedAbPanel.position.set(0, 0.40, 0.02);
+            R.torso.add(frontRedAbPanel);
+
+            // Sculpted 6-Pack Abdominal Muscle Contours
+            for (let row = 0; row < 3; row++) {
+                [-1, 1].forEach(side => {
+                    const abMuscle = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.13, 12, 12),
+                        spideyMaterials.primary
+                    );
+                    abMuscle.scale.set(1.15, 0.72, 0.55);
+                    abMuscle.position.set(side * 0.12, 0.22 + row * 0.20, 0.47 + row * 0.02);
+                    R.torso.add(abMuscle);
+                });
+            }
+
+            // Upper Broad V-Taper Chest & Latissimus Dorsi
+            const upperLatBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.84, 0.65, 0.86, 22),
+                spideyMaterials.secondary
+            );
+            upperLatBase.scale.set(1.08, 1, 0.80);
+            upperLatBase.position.y = 1.18;
+            R.torso.add(upperLatBase);
+
+            // Red Webbed Upper Chest Yoke & Shoulder Mantle
+            const redChestYoke = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.86, 0.68, 0.68, 22),
+                spideyMaterials.primary
+            );
+            redChestYoke.scale.set(1.09, 1, 0.82);
+            redChestYoke.position.y = 1.30;
+            R.torso.add(redChestYoke);
+
+            // Sculpted Left & Right Pectoral Muscle Plates
+            [-1, 1].forEach(side => {
+                const pec = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.38, 18, 18),
+                    spideyMaterials.primary
+                );
+                pec.scale.set(1.12, 0.82, 0.68);
+                pec.position.set(side * 0.28, 1.24, 0.48);
+                pec.rotation.y = side * 0.18;
+                R.torso.add(pec);
+            });
+
+            // Trapezius & Clavicle Collarbone Contour
+            const traps = new THREE.Mesh(
+                new THREE.SphereGeometry(0.55, 16, 16),
+                spideyMaterials.primary
+            );
+            traps.scale.set(1.45, 0.45, 0.85);
+            traps.position.set(0, 1.62, -0.02);
+            R.torso.add(traps);
+
+            // 3. DETAILED FRONT CHEST SPIDER EMBLEM & CLASSIC BACK SPIDER EMBLEM
+            const frontEmblemGroup = new THREE.Group();
+            frontEmblemGroup.position.set(0, 1.24, 0.72);
+            frontEmblemGroup.rotation.x = -0.08;
+
+            const fHead = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), spideyMaterials.emblem);
+            fHead.scale.set(0.9, 1.2, 0.5);
+            fHead.position.y = 0.14;
+            const fBody = new THREE.Mesh(new THREE.OctahedronGeometry(0.13, 1), spideyMaterials.emblem);
+            fBody.scale.set(0.85, 1.45, 0.4);
+            fBody.position.y = -0.05;
+            frontEmblemGroup.add(fHead, fBody);
+
+            const legAngles = [0.45, 0.15, -0.22, -0.55];
+            legAngles.forEach((ang, idx) => {
+                [-1, 1].forEach(side => {
+                    const seg1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.032, 0.04), spideyMaterials.emblem);
+                    seg1.position.set(side * 0.14, idx * -0.06 + 0.08, -0.01);
+                    seg1.rotation.z = side * ang;
+
+                    const seg2 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.026, 0.04), spideyMaterials.emblem);
+                    seg2.position.set(side * 0.26, idx * -0.09 + ( idx < 2 ? 0.22 : -0.14 ), -0.03);
+                    seg2.rotation.z = side * (idx < 2 ? 1.15 : -1.18);
+                    frontEmblemGroup.add(seg1, seg2);
+                });
+            });
+            R.torso.add(frontEmblemGroup);
+
+            // Classic Rounded Back Spider Emblem
+            const backEmblemGroup = new THREE.Group();
+            backEmblemGroup.position.set(0, 1.22, -0.68);
+            backEmblemGroup.rotation.x = 0.06;
+            const bAbdomen = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 14), spideyMaterials.backEmblem);
+            bAbdomen.scale.set(0.95, 1.2, 0.35);
+            const bHead = new THREE.Mesh(new THREE.SphereGeometry(0.10, 10, 10), spideyMaterials.backEmblem);
+            bHead.position.y = 0.24;
+            bHead.scale.set(1, 1, 0.4);
+            backEmblemGroup.add(bAbdomen, bHead);
+
+            legAngles.forEach((ang, idx) => {
+                [-1, 1].forEach(side => {
+                    const bLeg = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.045, 0.04), spideyMaterials.backEmblem);
+                    bLeg.position.set(side * 0.22, (1.5 - idx) * 0.08, 0);
+                    bLeg.rotation.z = side * ang;
+                    backEmblemGroup.add(bLeg);
+                });
+            });
+            R.torso.add(backEmblemGroup);
+
+            // 4. SCULPTED NECK, ANATOMICAL MASKED CRANIUM, JAWLINE & EXPRESSIVE 3D LENSES
+            R.torso.add(R.neck);
+            R.neck.position.set(0, 1.68, 0);
+
+            const neckCylinder = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.25, 0.30, 0.34, 16),
+                spideyMaterials.primary
+            );
+            neckCylinder.position.y = 0.12;
+            R.neck.add(neckCylinder);
+
+            R.neck.add(R.head);
+            R.head.position.y = 0.22;
+
+            // Upper Cranium Dome
+            const cranium = new THREE.Mesh(
+                new THREE.SphereGeometry(0.52, 24, 24),
+                spideyMaterials.mask
+            );
+            cranium.scale.set(0.92, 1.06, 1.02);
+            cranium.position.set(0, 0.36, 0.02);
+            R.head.add(cranium);
+
+            // Sculpted Tapered Jaw & Chin
+            const jaw = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.45, 0.24, 0.42, 20),
+                spideyMaterials.mask
+            );
+            jaw.scale.set(0.88, 1, 0.95);
+            jaw.position.set(0, 0.16, 0.06);
+            R.head.add(jaw);
+
+            const chin = new THREE.Mesh(
+                new THREE.SphereGeometry(0.24, 16, 16),
+                spideyMaterials.mask
+            );
+            chin.scale.set(0.95, 0.78, 1.08);
+            chin.position.set(0, -0.01, 0.12);
+            R.head.add(chin);
+
+            // Subtle Nose Bridge & Brow Contour under Mask
+            const noseBridge = new THREE.Mesh(
+                new THREE.ConeGeometry(0.11, 0.28, 4),
+                spideyMaterials.mask
+            );
+            noseBridge.rotation.x = 0.22;
+            noseBridge.rotation.y = Math.PI / 4;
+            noseBridge.scale.set(0.8, 1, 1.1);
+            noseBridge.position.set(0, 0.26, 0.50);
+            R.head.add(noseBridge);
+
+            // Expressive 3D Teardrop Spider-Man Lenses (Dynamic Squint Capability)
+            function buildExpressiveLens(lensGroup, side) {
+                lensGroup.position.set(side * 0.21, 0.34, 0.47);
+                lensGroup.rotation.y = side * 0.38;
+                lensGroup.rotation.z = -side * 0.26;
+                lensGroup.rotation.x = 0.08;
+
+                // Bold Black Raised Teardrop Outer Frame
+                const rimMain = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.22, 16, 16),
+                    spideyMaterials.eyeRim
+                );
+                rimMain.scale.set(1.18, 0.68, 0.30);
+
+                // Winged outer corner tip of the Spider-Man lens
+                const rimTip = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.13, 0.22, 12),
+                    spideyMaterials.eyeRim
+                );
+                rimTip.rotation.z = -side * 1.35;
+                rimTip.scale.set(1, 1, 0.32);
+                rimTip.position.set(side * 0.18, 0.05, -0.01);
+
+                // Glowing White Inner Lens
+                const whiteInner = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.17, 16, 16),
+                    spideyMaterials.eyeFill
+                );
+                whiteInner.scale.set(1.12, 0.56, 0.34);
+                whiteInner.position.set(0, -0.01, 0.02);
+
+                lensGroup.add(rimMain, rimTip, whiteInner);
+                R.head.add(lensGroup);
+            }
+            buildExpressiveLens(R.leftEyeLens, -1);
+            buildExpressiveLens(R.rightEyeLens, 1);
+
+            // 3D Spider-Sense Tingle Halo around Head
+            R.spiderSenseHalo.position.set(0, 0.42, 0);
+            for (let i = 0; i < 8; i++) {
+                const ang = (i / 8) * Math.PI * 2;
+                const bolt = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.08, 0.60, 4),
+                    new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xfde047 : 0xef4444 })
+                );
+                bolt.position.set(Math.cos(ang) * 0.92, Math.sin(ang) * 0.92, 0);
+                bolt.rotation.z = ang - Math.PI / 2;
+                R.spiderSenseHalo.add(bolt);
+            }
+            R.spiderSenseHalo.visible = false;
+            R.head.add(R.spiderSenseHalo);
+
+            // 5. MUSCULAR ARMS, DELTOIDS, SILVER WEB-SHOOTERS & ARTICULATED HANDS
+            function buildSculptedArm(shoulderGroup, elbowGroup, handGroup, fingersGroup, side) {
+                R.torso.add(shoulderGroup);
+                shoulderGroup.position.set(side * 0.96, 1.48, 0);
+
+                // Rounded Deltoid Muscle Cap
+                const deltoid = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.30, 16, 16),
+                    spideyMaterials.primary
+                );
+                deltoid.scale.set(0.95, 1.12, 0.95);
+                deltoid.position.y = -0.04;
+                shoulderGroup.add(deltoid);
+
+                // Sculpted Bicep & Tricep Upper Arm
+                const upperArm = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.23, 0.19, 0.88, 16),
+                    spideyMaterials.secondary
+                );
+                upperArm.position.y = -0.48;
+                shoulderGroup.add(upperArm);
+
+                const bicepBelly = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.20, 14, 14),
+                    spideyMaterials.secondary
+                );
+                bicepBelly.scale.set(0.85, 1.35, 0.95);
+                bicepBelly.position.set(0, -0.45, 0.06);
+                shoulderGroup.add(bicepBelly);
+
+                // Outer Red Webbed Arm Stripe
+                const redArmStrip = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.08, 0.84, 0.24),
+                    spideyMaterials.primary
+                );
+                redArmStrip.position.set(side * 0.19, -0.48, 0);
+                shoulderGroup.add(redArmStrip);
+
+                // Elbow Joint & Tapered Muscular Forearm
+                shoulderGroup.add(elbowGroup);
+                elbowGroup.position.set(0, -0.92, 0);
+
+                const elbowSphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.19, 14, 14),
+                    spideyMaterials.primary
+                );
+                elbowGroup.add(elbowSphere);
+
+                const forearm = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.20, 0.14, 0.88, 16),
+                    spideyMaterials.primary
+                );
+                forearm.position.y = -0.46;
+                elbowGroup.add(forearm);
+
+                // Mechanical Silver Wrist Web-Shooter Cuff & Spinneret Nozzle
+                const shooterCuff = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.155, 0.15, 0.14, 16),
+                    spideyMaterials.webShooterMetal
+                );
+                shooterCuff.position.y = -0.84;
+                elbowGroup.add(shooterCuff);
+
+                const nozzle = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.08, 0.12, 0.10),
+                    spideyMaterials.webShooterMetal
+                );
+                nozzle.position.set(0, -0.86, 0.14);
+                elbowGroup.add(nozzle);
+
+                // Sculpted Hand & Articulated Fingers (Capable of THWIP gesture!)
+                elbowGroup.add(handGroup);
+                handGroup.position.set(0, -0.94, 0);
+
+                const palm = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.22, 0.24, 0.12),
+                    spideyMaterials.primary
+                );
+                palm.position.y = -0.10;
+                handGroup.add(palm);
+
+                // Thumb
+                const thumb = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.04, 0.035, 0.18, 8),
+                    spideyMaterials.primary
+                );
+                thumb.position.set(-side * 0.14, -0.12, 0.06);
+                thumb.rotation.z = side * 0.65;
+                handGroup.add(thumb);
+
+                // Index & Pinky Fingers (Extended in iconic THWIP web-shooting pose)
+                handGroup.add(fingersGroup);
+                fingersGroup.position.set(0, -0.22, 0);
+                [-0.075, 0.075].forEach(fx => {
+                    const finger = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.035, 0.028, 0.22, 8),
+                        spideyMaterials.primary
+                    );
+                    finger.position.set(fx, -0.09, 0);
+                    fingersGroup.add(finger);
+                });
+
+                // Curled Middle & Ring Fingers pressing the palm web-trigger
+                [-0.025, 0.025].forEach(fx => {
+                    const curled = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.042, 8, 8),
+                        spideyMaterials.primary
+                    );
+                    curled.scale.set(0.8, 1.3, 1.2);
+                    curled.position.set(fx, -0.18, 0.07);
+                    handGroup.add(curled);
+                });
+            }
+
+            buildSculptedArm(R.leftShoulder, R.leftElbow, R.leftHand, R.leftFingers, -1);
+            buildSculptedArm(R.rightShoulder, R.rightElbow, R.rightHand, R.rightFingers, 1);
+
+            // 6. SCULPTED QUADRICEPS, KNEES, CALVES & WEBBED SPIDER-BOOTS
+            function buildSculptedLeg(hipGroup, kneeGroup, ankleGroup, side) {
+                R.pelvis.add(hipGroup);
+                hipGroup.position.set(side * 0.35, -0.16, 0);
+
+                // Hip Ball Joint
+                const hipJoint = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.28, 14, 14),
+                    spideyMaterials.secondary
+                );
+                hipGroup.add(hipJoint);
+
+                // Muscular Thigh (Quadriceps & Hamstring taper)
+                const thigh = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.30, 0.22, 1.22, 18),
+                    spideyMaterials.secondary
+                );
+                thigh.position.y = -0.62;
+                hipGroup.add(thigh);
+
+                const quadBelly = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.25, 14, 14),
+                    spideyMaterials.secondary
+                );
+                quadBelly.scale.set(0.88, 1.65, 0.95);
+                quadBelly.position.set(0, -0.56, 0.07);
+                hipGroup.add(quadBelly);
+
+                // Knee Joint & Sculpted Calf + Webbed Boot
+                hipGroup.add(kneeGroup);
+                kneeGroup.position.set(0, -1.22, 0);
+
+                const kneeCap = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.22, 14, 14),
+                    spideyMaterials.secondary
+                );
+                kneeCap.scale.set(0.95, 1.05, 1.08);
+                kneeGroup.add(kneeCap);
+
+                // Upper Blue Calf Muscle
+                const upperCalf = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.22, 0.19, 0.52, 16),
+                    spideyMaterials.secondary
+                );
+                upperCalf.position.y = -0.26;
+                kneeGroup.add(upperCalf);
+
+                const gastrocMuscle = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.21, 14, 14),
+                    spideyMaterials.secondary
+                );
+                gastrocMuscle.scale.set(0.88, 1.35, 1.05);
+                gastrocMuscle.position.set(0, -0.34, -0.07);
+                kneeGroup.add(gastrocMuscle);
+
+                // Lower Red Webbed Spider-Boot Shaft with V-Cut Rim
+                const bootShaft = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.195, 0.155, 0.74, 16),
+                    spideyMaterials.primary
+                );
+                bootShaft.position.y = -0.86;
+                kneeGroup.add(bootShaft);
+
+                // Ankle & Sleek Contoured Spider-Boot Foot
+                kneeGroup.add(ankleGroup);
+                ankleGroup.position.set(0, -1.24, 0);
+
+                const ankleSphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.16, 12, 12),
+                    spideyMaterials.primary
+                );
+                ankleGroup.add(ankleSphere);
+
+                const footArch = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.14, 0.16, 0.58, 14),
+                    spideyMaterials.primary
+                );
+                footArch.rotation.x = Math.PI / 2;
+                footArch.scale.set(1.05, 1, 0.78);
+                footArch.position.set(0, -0.08, 0.18);
+                ankleGroup.add(footArch);
+
+                const toeBox = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.16, 14, 14),
+                    spideyMaterials.primary
+                );
+                toeBox.scale.set(1.02, 0.68, 1.25);
+                toeBox.position.set(0, -0.09, 0.44);
+                ankleGroup.add(toeBox);
+
+                const sole = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.30, 0.06, 0.72),
+                    spideyMaterials.bootSole
+                );
+                sole.position.set(0, -0.19, 0.22);
+                ankleGroup.add(sole);
+            }
+
+            buildSculptedLeg(R.leftHip, R.leftKnee, R.leftAnkle, -1);
+            buildSculptedLeg(R.rightHip, R.rightKnee, R.rightAnkle, 1);
+
+            // 7. 4 ARTICULATED IRON SPIDER MECHANICAL GOLD ARMS (WALDOES)
+            R.torso.add(R.waldoesGroup);
+            R.waldoesGroup.position.set(0, 1.25, -0.52);
+            R.waldoesGroup.visible = false;
+
+            const waldoConfigs = [
+                { x: -0.35, y: 0.25, rz: 0.65 },
+                { x: 0.35, y: 0.25, rz: -0.65 },
+                { x: -0.35, y: -0.18, rz: 1.15 },
+                { x: 0.35, y: -0.18, rz: -1.15 }
+            ];
+            waldoConfigs.forEach(cfg => {
+                const baseJoint = new THREE.Group();
+                baseJoint.position.set(cfg.x, cfg.y, 0);
+                const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.055, 1.65, 10), spideyMaterials.waldoGold);
+                seg1.position.y = 0.82;
+                baseJoint.add(seg1);
+
+                const midJoint = new THREE.Group();
+                midJoint.position.y = 1.65;
+                const seg2 = new THREE.Mesh(new THREE.ConeGeometry(0.075, 1.9, 10), spideyMaterials.waldoGold);
+                seg2.position.y = 0.95;
+                midJoint.add(seg2);
+                baseJoint.add(midJoint);
+
+                R.waldoesGroup.add(baseJoint);
+                R.waldoes.push({ baseJoint, midJoint, cfg });
+            });
+
+            R.root.scale.set(1.25, 1.25, 1.25);
+            scene.add(R.root);
+        }
+
+        buildArticulated3DSpiderMan();
+
+        // ============================================================================
+        // 6. 3D WEB LINE, TARGETING RETICLE & SPEED TRAIL OBJECTS
+        // ============================================================================
+        // Active 3D Pendulum Web Line (20 vertices for dynamic whip wave)
+        const WEB_SEGMENTS = 20;
+        const webLineGeo = new THREE.BufferGeometry();
+        const webPositions = new Float32Array((WEB_SEGMENTS + 1) * 3);
+        webLineGeo.setAttribute('position', new THREE.BufferAttribute(webPositions, 3));
+        const webLineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 });
+        const activeWebLine = new THREE.Line(webLineGeo, webLineMat);
+        activeWebLine.frustumCulled = false;
+        activeWebLine.visible = false;
+        scene.add(activeWebLine);
+
+        // 3D Anchor Attachment Point Sphere
+        const anchorKnobMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(1.4, 12, 12),
+            new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        anchorKnobMesh.visible = false;
+        scene.add(anchorKnobMesh);
+
+        // 3D Candidate Anchor Reticle Ring (Shows where your next web will attach on a skyscraper)
+        const reticleGroup = new THREE.Group();
+        const retOuter = new THREE.Mesh(
+            new THREE.RingGeometry(2.2, 3.0, 24),
+            new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide, depthTest: false })
+        );
+        const retInner = new THREE.Mesh(
+            new THREE.RingGeometry(0.8, 1.3, 16),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false })
+        );
+        reticleGroup.add(retOuter, retInner);
+        scene.add(reticleGroup);
+
+        // ============================================================================
+        // 7. SPIDER-MAN 3D PHYSICS & CAMERA STATE (Weighty, Cinematic Tuning)
+        // ============================================================================
+        let physicsSpeedScale = 1.0; // Adjustable from HUD slider (0.5x to 1.8x)
+
+        const spidey = {
+            pos: new THREE.Vector3(0, 138, 0),
+            vel: new THREE.Vector3(0, 0, -0.68),
+            heading: Math.PI, // Facing -Z initially
+            pitch: 0,
+            bank: 0,
+            state: 'FALLING', // 'PERCHED', 'RUNNING', 'WALL_RUN', 'SWINGING', 'FALLING', 'ZIPPING', 'TRICK', 'STRIKE'
+            onGround: false,
+            wallNormal: null,
+
+            // 3D Pendulum Web State
+            webAttached: false,
+            anchor: new THREE.Vector3(),
+            ropeLength: 0,
+            webShootProgress: 0,
+            swingHand: 'right',
+            candidateAnchor: null,
+            cornerSteer: 0,
+
+            // Animation & Acrobatic Timers
+            animTime: 0,
+            runCycle: 0,
+            flipAngle: 0,
+            twistAngle: 0,
+            apexFlipTimer: 0,
+            trickTimer: 0,
+            trickType: 0,
+            zipTimer: 0,
+            zipTarget: new THREE.Vector3(),
+            strikeTarget: null,
+            strikeTimer: 0,
+            spiderSenseTimer: 0,
+
+            // Gameplay Stats
+            health: 100,
+            focus: 65,
+            score: 0,
+            level: 1,
+            combo: 0,
+            comboTimer: 0,
+            airtime: 0,
+            mph: 0
+        };
+
+        // Cinematic Insomniac-Style 3D Camera State
+        const camCtrl = {
+            yaw: Math.PI,
+            pitch: 0.14,
+            distance: 16.5,
+            currentFov: 56,
+            roll: 0,
+            lookTarget: new THREE.Vector3(0, 138, 0),
+            shake: 0,
+            isDragging: false,
+            lastMouseX: 0,
+            lastMouseY: 0,
+            manualOrbitTimer: 0
+        };
+
+        const comicPopups2D = [];
+
+        function addComicPopup(worldPos, text, color = '#fde047') {
+            comicPopups2D.push({
+                worldPos: worldPos.clone(),
+                text: text,
+                color: color,
+                life: 52,
+                maxLife: 52
+            });
+        }
+
+        function spawn3DBurst(pos, colorHex = 0xffffff, count = 14) {
+            const geo = new THREE.SphereGeometry(0.42, 6, 6);
+            const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+            for (let i = 0; i < count; i++) {
+                const m = new THREE.Mesh(geo, mat);
+                m.position.copy(pos);
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const spd = 0.28 + Math.random() * 0.95;
+                scene.add(m);
+                particleBursts3D.push({
+                    mesh: m,
+                    vx: Math.sin(phi) * Math.cos(theta) * spd,
+                    vy: Math.cos(phi) * spd,
+                    vz: Math.sin(phi) * Math.sin(theta) * spd,
+                    life: 28
+                });
+            }
+        }
+
+        function addCombo(pts, label, color = '#fde047') {
+            spidey.combo += pts;
+            spidey.comboTimer = 320;
+            spidey.score += pts * 150 * Math.max(1, Math.floor(spidey.combo / 2));
+            spidey.level = 1 + Math.floor(spidey.score / 5000);
+            if (label) {
+                addComicPopup(spidey.pos.clone().add(new THREE.Vector3(0, 4.5, 0)), label, color);
+            }
+        }
+
+        // ============================================================================
+        // 8. INPUT CONTROLS (Keyboard, Mouse Orbit & 3D Web-Swing / Touch Controls)
+        // ============================================================================
+        const keys = { forward: false, backward: false, left: false, right: false, swing: false };
+
+        window.addEventListener('keydown', (e) => {
+            const c = e.code;
+            if (c === 'KeyW' || c === 'ArrowUp') keys.forward = true;
+            if (c === 'KeyS' || c === 'ArrowDown') keys.backward = true;
+            if (c === 'KeyA' || c === 'ArrowLeft') keys.left = true;
+            if (c === 'KeyD' || c === 'ArrowRight') keys.right = true;
+
+            if (c === 'Space') {
+                e.preventDefault();
+                if (!keys.swing) {
+                    keys.swing = true;
+                    if (spidey.onGround) {
+                        // Controlled Acrobatic Leap off rooftop/street
+                        spidey.vel.y = 1.02 * physicsSpeedScale;
+                        spidey.onGround = false;
+                        spidey.state = 'FALLING';
+                        spidey.apexFlipTimer = 32;
+                        spawn3DBurst(spidey.pos, 0xe2e8f0, 10);
+                    } else {
+                        start3DWebSwing();
+                    }
+                }
+            }
+            if (c === 'ShiftLeft' || c === 'ShiftRight') {
+                e.preventDefault();
+                trigger3DWebZip();
+            }
+            if (c === 'KeyE') {
+                trigger3DAirTrick();
+            }
+            if (c === 'KeyF') {
+                trigger3DWebStrike();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const c = e.code;
+            if (c === 'KeyW' || c === 'ArrowUp') keys.forward = false;
+            if (c === 'KeyS' || c === 'ArrowDown') keys.backward = false;
+            if (c === 'KeyA' || c === 'ArrowLeft') keys.left = false;
+            if (c === 'KeyD' || c === 'ArrowRight') keys.right = false;
+            if (c === 'Space') {
+                keys.swing = false;
+                if (spidey.webAttached) release3DWebSwing();
+            }
+        });
+
+        // Mouse Camera Orbit (Left-Click Drag) & Web-Swinging (Right-Click Hold)
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('#helpModal')) return;
+            sfx.init();
+            if (e.button === 0) {
+                camCtrl.isDragging = true;
+                camCtrl.lastMouseX = e.clientX;
+                camCtrl.lastMouseY = e.clientY;
+            } else if (e.button === 2) {
+                keys.swing = true;
+                if (spidey.onGround) {
+                    spidey.vel.y = 1.02 * physicsSpeedScale;
+                    spidey.onGround = false;
+                }
+                start3DWebSwing();
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (camCtrl.isDragging) {
+                const dx = e.clientX - camCtrl.lastMouseX;
+                const dy = e.clientY - camCtrl.lastMouseY;
+                camCtrl.lastMouseX = e.clientX;
+                camCtrl.lastMouseY = e.clientY;
+                camCtrl.yaw -= dx * 0.0065;
+                camCtrl.pitch = Math.max(-0.35, Math.min(1.15, camCtrl.pitch + dy * 0.0055));
+                camCtrl.manualOrbitTimer = 150;
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                camCtrl.isDragging = false;
+            } else if (e.button === 2) {
+                keys.swing = false;
+                if (spidey.webAttached) release3DWebSwing();
+            }
+        });
+
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Touch & Action Pad Buttons
+        function bindHoldButton(btnId, onDown, onUp) {
+            const el = document.getElementById(btnId);
+            if (!el) return;
+            const start = (e) => { e.preventDefault(); e.stopPropagation(); sfx.init(); el.classList.add('active-btn'); onDown(); };
+            const end = (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('active-btn'); if (onUp) onUp(); };
+            el.addEventListener('mousedown', start);
+            el.addEventListener('mouseup', end);
+            el.addEventListener('mouseleave', end);
+            el.addEventListener('touchstart', start, { passive: false });
+            el.addEventListener('touchend', end, { passive: false });
+        }
+
+        bindHoldButton('btnSwing', () => {
+            keys.swing = true;
+            if (spidey.onGround) {
+                spidey.vel.y = 1.02 * physicsSpeedScale;
+                spidey.onGround = false;
+            }
+            start3DWebSwing();
+        }, () => {
+            keys.swing = false;
+            if (spidey.webAttached) release3DWebSwing();
+        });
+
+        bindHoldButton('btnZip', () => trigger3DWebZip());
+        bindHoldButton('btnTrick', () => trigger3DAirTrick());
+        bindHoldButton('btnStrike', () => trigger3DWebStrike());
+        bindHoldButton('btnLeft', () => { keys.left = true; }, () => { keys.left = false; });
+        bindHoldButton('btnRight', () => { keys.right = true; }, () => { keys.right = false; });
+
+        // Top Bar Suit, Time, Audio, Pace Slider & Manual Toggles
+        const speedSlider = document.getElementById('speedSlider');
+        const speedMultiplierLabel = document.getElementById('speedMultiplierLabel');
+        if (speedSlider) {
+            speedSlider.addEventListener('input', (e) => {
+                physicsSpeedScale = parseFloat(e.target.value);
+                speedMultiplierLabel.textContent = physicsSpeedScale.toFixed(1) + 'x';
+            });
+        }
+
+        document.getElementById('suitBtn').addEventListener('click', () => {
+            currentSuitIndex = (currentSuitIndex + 1) % SUITS.length;
+            const s = SUITS[currentSuitIndex];
+            updateProceduralSuitTextures(s);
+
+            spideyMaterials.primary.metalness = s.metalness;
+            spideyMaterials.primary.roughness = s.roughness;
+            spideyMaterials.mask.metalness = s.metalness;
+            spideyMaterials.mask.roughness = s.roughness;
+            spideyMaterials.secondary.metalness = s.metalness + 0.08;
+            spideyMaterials.secondary.roughness = s.roughness + 0.05;
+            spideyMaterials.emblem.color.setHex(s.emblem);
+            spideyMaterials.backEmblem.color.setHex(s.backEmblem);
+            spideyMaterials.eyeRim.color.setHex(s.eyeRim);
+            spideyMaterials.eyeFill.color.setHex(s.eyeFill);
+            spideyRig.waldoesGroup.visible = s.hasWaldoes;
+
+            document.getElementById('suitName').textContent = s.name;
+            document.getElementById('suitDot').style.backgroundColor = s.dotColor;
+            addComicPopup(spidey.pos.clone().add(new THREE.Vector3(0, 4, 0)), s.name.toUpperCase() + '!', s.dotColor);
+            spawn3DBurst(spidey.pos, s.primary, 18);
+        });
+
+        document.getElementById('timeBtn').addEventListener('click', () => {
+            currentTimeIndex = (currentTimeIndex + 1) % TIME_THEMES.length;
+            const t = TIME_THEMES[currentTimeIndex];
+            scene.background.setHex(t.skyColor);
+            scene.fog.color.setHex(t.fogColor);
+            hemiLight.color.setHex(t.hemiSky);
+            hemiLight.groundColor.setHex(t.hemiGround);
+            dirLight.color.setHex(t.sunColor);
+            dirLight.intensity = t.sunIntensity;
+            dirLight.position.set(...t.sunPos);
+            sunMesh.position.set(...t.sunPos);
+            sunMat.color.setHex(t.sunColor);
+            renderer.toneMappingExposure = t.exposure;
+            scene.environment = createCityEnvironmentMap(t.skyTop, t.skyHorizon);
+            updateSkyDomeTexture(t);
+
+            document.getElementById('timeName').textContent = t.name;
+            document.getElementById('timeIcon').textContent = t.icon;
+        });
+
+        document.getElementById('soundBtn').addEventListener('click', (e) => {
+            sfx.init();
+            sfx.enabled = !sfx.enabled;
+            e.currentTarget.textContent = sfx.enabled ? '🔊 ON' : '🔇 OFF';
+        });
+
+        const helpModal = document.getElementById('helpModal');
+        document.getElementById('helpBtn').addEventListener('click', () => helpModal.classList.remove('hidden'));
+        document.getElementById('closeHelpBtn').addEventListener('click', () => helpModal.classList.add('hidden'));
+        document.getElementById('resumeGameBtn').addEventListener('click', () => helpModal.classList.add('hidden'));
+
+        // ============================================================================
+        // 9. SMART 3D WEB-SWING ANCHOR SELECTION, CORNER CARVING, ZIP & STRIKE
+        // ============================================================================
+        // Helper: Computes the nearest Manhattan Avenue Center-Line (Midpoint between skyscraper rows)
+        function getNearestAvenueCenter(coord) {
+            const shifted = coord - BLOCK_STEP * 0.5;
+            return Math.round(shifted / BLOCK_STEP) * BLOCK_STEP + BLOCK_STEP * 0.5;
+        }
+
+        function findBest3DAnchor() {
+            // Blend camera look direction with player steering input so webs attach toward the corner you want to turn into!
+            const camForward = new THREE.Vector3(Math.sin(camCtrl.yaw), 0, Math.cos(camCtrl.yaw)).normalize();
+            const camRight = new THREE.Vector3(-camForward.z, 0, camForward.x).normalize();
+
+            const steerDir = camForward.clone();
+            if (keys.right) steerDir.addScaledVector(camRight, 0.45);
+            if (keys.left) steerDir.addScaledVector(camRight, -0.45);
+            steerDir.normalize();
+
+            const idealDist = 48;
+            const idealPos = spidey.pos.clone()
+                .addScaledVector(steerDir, idealDist)
+                .addScaledVector(spidey.vel, 14);
+            idealPos.y = Math.max(spidey.pos.y + 42, 68);
+
+            // Web-Assist Centering: Project ideal anchor toward the center of the current Manhattan street canyon
+            if (Math.abs(steerDir.z) >= Math.abs(steerDir.x)) {
+                idealPos.x = THREE.MathUtils.lerp(idealPos.x, getNearestAvenueCenter(spidey.pos.x), 0.75);
+            } else {
+                idealPos.z = THREE.MathUtils.lerp(idealPos.z, getNearestAvenueCenter(spidey.pos.z), 0.75);
+            }
+
+            let bestAnchor = null;
+            let bestScore = Infinity;
+
+            for (let i = 0; i < buildings3D.length; i++) {
+                const b = buildings3D[i];
+                if (Math.abs(b.x - spidey.pos.x) > 175 || Math.abs(b.z - spidey.pos.z) > 175) continue;
+
+                for (let j = 0; j < b.anchors.length; j++) {
+                    const a = b.anchors[j];
+                    const dy = a.y - spidey.pos.y;
+                    if (dy < 12) continue;
+
+                    const dist = a.distanceTo(spidey.pos);
+                    if (dist < 26 || dist > 135) continue;
+
+                    const toAnchor = a.clone().sub(spidey.pos);
+                    const forwardDot = toAnchor.x * steerDir.x + toAnchor.z * steerDir.z;
+                    if (forwardDot < 4) continue; // Ensure anchor is genuinely ahead of Spider-Man
+
+                    // Prefer anchors on the avenue facade bordering our street canyon
+                    const lateralOffset = Math.abs(toAnchor.x * (-steerDir.z) + toAnchor.z * steerDir.x);
+                    const idealLatPenalty = Math.abs(lateralOffset - 26) * 0.35;
+                    const score = a.distanceTo(idealPos) - forwardDot * 0.42 + idealLatPenalty;
+
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestAnchor = a;
+                    }
+                }
+            }
+
+            if (!bestAnchor) {
+                bestAnchor = idealPos.clone();
+                bestAnchor.y = Math.max(spidey.pos.y + 44, 88);
+            }
+            return bestAnchor;
+        }
+
+        function start3DWebSwing() {
+            const anchor = findBest3DAnchor();
+            if (!anchor) return;
+
+            spidey.webAttached = true;
+            spidey.onGround = false;
+            spidey.wallNormal = null;
+            spidey.anchor.copy(anchor);
+            // Slightly shorten initial rope length if Spider-Man is close to the street for an immediate swooping lift!
+            const rawDist = spidey.pos.distanceTo(anchor);
+            spidey.ropeLength = spidey.pos.y < 24 ? rawDist * 0.92 : rawDist * 0.98;
+            spidey.webShootProgress = 0;
+            spidey.swingHand = spidey.swingHand === 'right' ? 'left' : 'right';
+            spidey.state = 'SWINGING';
+
+            const forward = new THREE.Vector3(Math.sin(camCtrl.yaw), 0, Math.cos(camCtrl.yaw));
+            if (spidey.vel.length() < 0.62 * physicsSpeedScale) {
+                spidey.vel.addScaledVector(forward, 0.42 * physicsSpeedScale);
+            }
+
+            sfx.playThwip(0.95 + Math.random() * 0.15);
+            spawn3DBurst(anchor, 0xffffff, 8);
+        }
+
+        function release3DWebSwing() {
+            if (!spidey.webAttached) return;
+
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                spidey.anchor.clone(),
+                spidey.pos.clone().add(new THREE.Vector3(0, 2.5, 0))
+            ]);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.65 });
+            const lineMesh = new THREE.Line(lineGeo, lineMat);
+            scene.add(lineMesh);
+            releasedWebLines3D.push({ mesh: lineMesh, mat: lineMat, life: 38 });
+
+            // Responsive Jump-Off-Swing & Upward Arc Apex Boost
+            const speed = spidey.vel.length();
+            if (spidey.vel.y > 0.05 && speed > 0.55 * physicsSpeedScale) {
+                spidey.vel.multiplyScalar(1.14);
+                spidey.vel.y += 0.28 * physicsSpeedScale;
+                spidey.apexFlipTimer = 46;
+                sfx.playApexBoost();
+                addCombo(1, 'APEX LAUNCH!', '#fde047');
+                spawn3DBurst(spidey.pos, 0xfde047, 14);
+            } else {
+                // Even when releasing early/mid-swing, give a clean acrobatic hop upward so you never drop like a stone
+                spidey.vel.y = Math.max(spidey.vel.y + 0.18 * physicsSpeedScale, 0.26 * physicsSpeedScale);
+                spidey.apexFlipTimer = 32;
+            }
+
+            spidey.webAttached = false;
+            activeWebLine.visible = false;
+            anchorKnobMesh.visible = false;
+            spidey.state = 'FALLING';
+        }
+
+        function trigger3DWebZip() {
+            if (spidey.zipTimer > 8) return;
+            if (spidey.webAttached) release3DWebSwing();
+
+            spidey.onGround = false;
+            spidey.wallNormal = null;
+            spidey.state = 'ZIPPING';
+            spidey.zipTimer = 22;
+            spidey.apexFlipTimer = 30;
+
+            // Point-Zip steers toward camera look + WASD input
+            const camForward = new THREE.Vector3(Math.sin(camCtrl.yaw), 0.24, Math.cos(camCtrl.yaw)).normalize();
+            const camRight = new THREE.Vector3(-camForward.z, 0, camForward.x).normalize();
+            if (keys.right) camForward.addScaledVector(camRight, 0.4).normalize();
+            if (keys.left) camForward.addScaledVector(camRight, -0.4).normalize();
+
+            spidey.vel.copy(camForward).multiplyScalar(1.24 * physicsSpeedScale);
+            spidey.heading = Math.atan2(camForward.x, camForward.z);
+            spidey.zipTarget.copy(spidey.pos).addScaledVector(camForward, 36);
+
+            // Spawn dual temporary web-zip lines forward
+            const zipLineGeo = new THREE.BufferGeometry().setFromPoints([
+                spidey.pos.clone().add(new THREE.Vector3(0, 2.6, 0)),
+                spidey.zipTarget.clone()
+            ]);
+            const zipLineMat = new THREE.LineBasicMaterial({ color: 0xf8fafc, transparent: true, opacity: 0.85 });
+            const zipLineMesh = new THREE.Line(zipLineGeo, zipLineMat);
+            scene.add(zipLineMesh);
+            releasedWebLines3D.push({ mesh: zipLineMesh, mat: zipLineMat, life: 18 });
+
+            sfx.playThwip(1.35);
+            spawn3DBurst(spidey.pos, 0x38bdf8, 12);
+        }
+
+        function trigger3DAirTrick() {
+            if (spidey.onGround || spidey.webAttached || spidey.trickTimer > 6) return;
+
+            const tricks = [
+                '3D SPIDER BACKFLIP!',
+                'SYMBIOTE CORKSCREW!',
+                'STARFISH SKY-POSE!',
+                'IRON SPIDER SPIN!'
+            ];
+            spidey.trickType = (spidey.trickType + 1) % tricks.length;
+            spidey.trickTimer = 42;
+            spidey.state = 'TRICK';
+            spidey.focus = Math.min(100, spidey.focus + 15);
+
+            sfx.playTrick();
+            addCombo(2, tricks[spidey.trickType], '#fbbf24');
+            spawn3DBurst(spidey.pos, 0xfbbf24, 14);
+        }
+
+        function trigger3DWebStrike() {
+            let nearest = null;
+            let bestDist = 95;
+            for (let i = 0; i < drones3D.length; i++) {
+                const d = drones3D[i];
+                if (d.webbed) continue;
+                const dist = d.group.position.distanceTo(spidey.pos);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    nearest = d;
+                }
+            }
+
+            if (nearest) {
+                if (spidey.webAttached) release3DWebSwing();
+                spidey.onGround = false;
+                spidey.strikeTarget = nearest;
+                spidey.strikeTimer = 38;
+                spidey.state = 'STRIKE';
+                sfx.playThwip(1.25);
+                addComicPopup(spidey.pos.clone().add(new THREE.Vector3(0, 4, 0)), 'WEB-STRIKE!', '#ef4444');
+            } else {
+                trigger3DWebZip();
+            }
+        }
+
+        // ============================================================================
+        // 10. 3D PHYSICS, COLLISIONS & SKELETAL ANIMATION UPDATE LOOP
+        // ============================================================================
+        function update3DGame() {
+            const pScale = physicsSpeedScale;
+            spidey.animTime += 0.032 * pScale;
+            const GRAVITY = 0.021 * pScale;
+
+            // Wrap Spider-Man cleanly within the Manhattan grid bounds
+            if (spidey.pos.x > CITY_EXTENT) { spidey.pos.x -= CITY_EXTENT * 2; spidey.anchor.x -= CITY_EXTENT * 2; }
+            if (spidey.pos.x < -CITY_EXTENT) { spidey.pos.x += CITY_EXTENT * 2; spidey.anchor.x += CITY_EXTENT * 2; }
+            if (spidey.pos.z > CITY_EXTENT) { spidey.pos.z -= CITY_EXTENT * 2; spidey.anchor.z -= CITY_EXTENT * 2; }
+            if (spidey.pos.z < -CITY_EXTENT) { spidey.pos.z += CITY_EXTENT * 2; spidey.anchor.z += CITY_EXTENT * 2; }
+
+            // Compute camera-relative directional vectors for intuitive 3D steering
+            const camForward = new THREE.Vector3(Math.sin(camCtrl.yaw), 0, Math.cos(camCtrl.yaw)).normalize();
+            const camRight = new THREE.Vector3(-camForward.z, 0, camForward.x).normalize();
+
+            const moveDir = new THREE.Vector3();
+            if (keys.forward) moveDir.add(camForward);
+            if (keys.backward) moveDir.sub(camForward);
+            if (keys.right) moveDir.add(camRight);
+            if (keys.left) moveDir.sub(camRight);
+            if (moveDir.lengthSq() > 0) moveDir.normalize();
+
+            // Update candidate 3D anchor reticle
+            spidey.candidateAnchor = findBest3DAnchor();
+            if (!spidey.webAttached && spidey.candidateAnchor) {
+                reticleGroup.visible = true;
+                reticleGroup.position.copy(spidey.candidateAnchor);
+                reticleGroup.lookAt(camera.position);
+                retOuter.rotation.z += 0.04;
+            } else {
+                reticleGroup.visible = false;
+            }
+
+            // ------------------------------------------------------------------------
+            // STATE 1: HOMING 3D WEB-STRIKE ON COMBAT DRONE
+            // ------------------------------------------------------------------------
+            if (spidey.state === 'STRIKE' && spidey.strikeTarget) {
+                const tPos = spidey.strikeTarget.group.position;
+                const toTarget = tPos.clone().sub(spidey.pos);
+                const dist = toTarget.length();
+                spidey.strikeTimer--;
+
+                if (dist < 5.5 || spidey.strikeTimer <= 0) {
+                    spidey.strikeTarget.webbed = true;
+                    spidey.strikeTarget.respawnTimer = 420;
+                    spidey.vel.set(-toTarget.x * 0.04, 0.92 * pScale, -toTarget.z * 0.04);
+                    spidey.apexFlipTimer = 40;
+                    spidey.state = 'FALLING';
+                    spidey.focus = Math.min(100, spidey.focus + 25);
+                    camCtrl.shake = 1.6;
+                    sfx.playHit();
+                    addCombo(3, 'WHAM!! DRONE TAKEDOWN!', '#ef4444');
+                    spawn3DBurst(tPos, 0xef4444, 24);
+                    spidey.strikeTarget = null;
+                } else {
+                    toTarget.normalize();
+                    spidey.vel.copy(toTarget).multiplyScalar(1.65 * pScale);
+                    spidey.pos.add(spidey.vel);
+                    spidey.heading = Math.atan2(toTarget.x, toTarget.z);
+                }
+            }
+            // ------------------------------------------------------------------------
+            // STATE 2: RESPONSIVE 3D PENDULUM WEB-SWINGING WITH CORNER CARVING & GROUND SKIM
+            // ------------------------------------------------------------------------
+            else if (spidey.webAttached) {
+                spidey.state = 'SWINGING';
+                spidey.webShootProgress = Math.min(1, spidey.webShootProgress + 0.14 * pScale);
+
+                spidey.vel.y -= GRAVITY;
+
+                // Responsive directional thrust & smooth A/D corner-carving force
+                const steerInput = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+                spidey.cornerSteer = THREE.MathUtils.lerp(spidey.cornerSteer, steerInput, 0.15);
+
+                if (moveDir.lengthSq() > 0) {
+                    spidey.vel.addScaledVector(moveDir, 0.019 * pScale);
+                } else {
+                    spidey.vel.addScaledVector(camForward, 0.010 * pScale);
+                }
+
+                // Active Corner Carving: smoothly rotate horizontal velocity when steering left/right
+                if (steerInput !== 0) {
+                    const turnRate = -steerInput * 0.026 * pScale;
+                    const cosT = Math.cos(turnRate);
+                    const sinT = Math.sin(turnRate);
+                    const vx = spidey.vel.x * cosT - spidey.vel.z * sinT;
+                    const vz = spidey.vel.x * sinT + spidey.vel.z * cosT;
+                    spidey.vel.x = vx;
+                    spidey.vel.z = vz;
+                }
+
+                //Low-Altitude Street Skim Assist (Prevents slamming into the street during low swoops)
+                if (spidey.pos.y < 14 && spidey.vel.y < 0) {
+                    spidey.vel.y *= 0.78;
+                    spidey.ropeLength = Math.max(24, spidey.ropeLength - 0.55 * pScale);
+                }
+
+                // Reel web rope length with W / S
+                if (keys.forward && spidey.ropeLength > 24) spidey.ropeLength -= 0.18 * pScale;
+                if (keys.backward && spidey.ropeLength < 130) spidey.ropeLength += 0.18 * pScale;
+
+                const maxSwingSpeed = 1.38 * pScale;
+                if (spidey.vel.length() > maxSwingSpeed) {
+                    spidey.vel.setLength(maxSwingSpeed);
+                }
+
+                spidey.pos.add(spidey.vel);
+
+                // Enforce 3D Spherical Pendulum Constraint
+                const offset = spidey.pos.clone().sub(spidey.anchor);
+                const dist = offset.length() || 1;
+                if (dist > spidey.ropeLength) {
+                    const normal = offset.divideScalar(dist);
+                    spidey.pos.copy(spidey.anchor).addScaledVector(normal, spidey.ropeLength);
+
+                    const radialVel = spidey.vel.dot(normal);
+                    if (radialVel > 0) {
+                        spidey.vel.addScaledVector(normal, -radialVel);
+                    }
+                }
+
+                // AVENUE CENTER-LANE WEB ASSIST:
+                // Even though the web attaches to a skyscraper on the left or right side of the street,
+                // gently guide Spider-Man's swing trajectory down the middle of the Manhattan avenue between buildings!
+                if (steerInput === 0) {
+                    const absVx = Math.abs(spidey.vel.x);
+                    const absVz = Math.abs(spidey.vel.z);
+                    if (absVz >= absVx) {
+                        const targetCenterX = getNearestAvenueCenter(spidey.pos.x);
+                        const errX = targetCenterX - spidey.pos.x;
+                        spidey.vel.x += THREE.MathUtils.clamp(errX * 0.0024, -0.028, 0.028) * pScale;
+                        spidey.pos.x = THREE.MathUtils.lerp(spidey.pos.x, targetCenterX, 0.032 * pScale);
+                    } else {
+                        const targetCenterZ = getNearestAvenueCenter(spidey.pos.z);
+                        const errZ = targetCenterZ - spidey.pos.z;
+                        spidey.vel.z += THREE.MathUtils.clamp(errZ * 0.0024, -0.028, 0.028) * pScale;
+                        spidey.pos.z = THREE.MathUtils.lerp(spidey.pos.z, targetCenterZ, 0.032 * pScale);
+                    }
+                }
+
+                // Skyscraper Proximity Repulsion Buffer (Keeps Spider-Man from scraping against building walls mid-swing)
+                const safeBuffer = 7.5;
+                for (let i = 0; i < buildings3D.length; i++) {
+                    const b = buildings3D[i];
+                    if (spidey.pos.y >= b.h) continue;
+                    if (spidey.pos.x > b.minX - safeBuffer && spidey.pos.x < b.maxX + safeBuffer &&
+                        spidey.pos.z > b.minZ - safeBuffer && spidey.pos.z < b.maxZ + safeBuffer) {
+                        const pushX = spidey.pos.x - b.x;
+                        const pushZ = spidey.pos.z - b.z;
+                        if (Math.abs(pushX) > Math.abs(pushZ)) {
+                            spidey.vel.x += Math.sign(pushX) * 0.022 * pScale;
+                        } else {
+                            spidey.vel.z += Math.sign(pushZ) * 0.022 * pScale;
+                        }
+                    }
+                }
+
+                spidey.vel.multiplyScalar(0.9965);
+
+                // Smoothly align Spider-Man's heading with horizontal velocity
+                const horizSpeed = Math.hypot(spidey.vel.x, spidey.vel.z);
+                if (horizSpeed > 0.05) {
+                    const targetHeading = Math.atan2(spidey.vel.x, spidey.vel.z);
+                    let diff = targetHeading - spidey.heading;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    spidey.heading += diff * 0.22;
+                }
+            }
+            // ------------------------------------------------------------------------
+            // STATE 3: GROUNDED ROOFTOP RUNNING, WALL-RUNNING OR FREE-FALL
+            // ------------------------------------------------------------------------
+            else {
+                spidey.cornerSteer = THREE.MathUtils.lerp(spidey.cornerSteer, 0, 0.12);
+                if (spidey.zipTimer > 0) {
+                    spidey.zipTimer--;
+                    if (spidey.zipTimer === 0) spidey.state = 'FALLING';
+                }
+                if (spidey.trickTimer > 0) {
+                    spidey.trickTimer--;
+                    if (spidey.trickTimer === 0 && !spidey.onGround) spidey.state = 'FALLING';
+                }
+                if (spidey.apexFlipTimer > 0) spidey.apexFlipTimer--;
+
+                if (spidey.onGround) {
+                    if (moveDir.lengthSq() > 0) {
+                        // Grounded, realistic rooftop run speed (~50% slower than before)
+                        const runSpeed = 0.56 * pScale;
+                        spidey.vel.x = THREE.MathUtils.lerp(spidey.vel.x, moveDir.x * runSpeed, 0.22);
+                        spidey.vel.z = THREE.MathUtils.lerp(spidey.vel.z, moveDir.z * runSpeed, 0.22);
+
+                        const targetHeading = Math.atan2(moveDir.x, moveDir.z);
+                        let diff = targetHeading - spidey.heading;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        spidey.heading += diff * 0.22;
+
+                        spidey.state = 'RUNNING';
+                        spidey.runCycle += 0.18 * pScale; // Stride rate matched to ground speed
+                    } else {
+                        spidey.vel.x *= 0.72;
+                        spidey.vel.z *= 0.72;
+                        spidey.state = 'PERCHED';
+                    }
+                    spidey.pos.add(spidey.vel);
+                } else {
+                    // Mid-Air Gravity & Steering
+                    spidey.vel.y -= GRAVITY;
+                    if (moveDir.lengthSq() > 0) {
+                        spidey.vel.x += moveDir.x * 0.012 * pScale;
+                        spidey.vel.z += moveDir.z * 0.012 * pScale;
+                        const targetHeading = Math.atan2(spidey.vel.x, spidey.vel.z);
+                        let diff = targetHeading - spidey.heading;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        spidey.heading += diff * 0.12;
+                    }
+                    // Terminal velocity & air drag
+                    spidey.vel.multiplyScalar(0.994);
+                    if (spidey.vel.y < -1.45 * pScale) spidey.vel.y = -1.45 * pScale;
+                    spidey.pos.add(spidey.vel);
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // 3D SKYSCRAPER COLLISIONS: ROOFTOP LANDINGS & VERTICAL WALL-RUNNING!
+            // ------------------------------------------------------------------------
+            let supportedByRoof = false;
+            spidey.wallNormal = null;
+            const playerRad = 1.8;
+
+            for (let i = 0; i < buildings3D.length; i++) {
+                const b = buildings3D[i];
+                if (spidey.pos.x + playerRad < b.minX || spidey.pos.x - playerRad > b.maxX ||
+                    spidey.pos.z + playerRad < b.minZ || spidey.pos.z - playerRad > b.maxZ) {
+                    continue;
+                }
+
+                // 1. Rooftop Plane Landing
+                if (spidey.pos.y >= b.h - 2.2 && spidey.pos.y - spidey.vel.y >= b.h - 2.5 && spidey.vel.y <= 0 && !spidey.webAttached) {
+                    if (spidey.vel.y < -1.05) {
+                        camCtrl.shake = 0.85;
+                        sfx.playHit();
+                        spawn3DBurst(spidey.pos, 0x94a3b8, 12);
+                    }
+                    spidey.pos.y = b.h;
+                    spidey.vel.y = 0;
+                    spidey.onGround = true;
+                    supportedByRoof = true;
+                    break;
+                }
+
+                // 2. Skyscraper Facade Collision & Controlled Vertical 3D Wall-Running
+                if (spidey.pos.y < b.h - 1.0) {
+                    const penLeft = (spidey.pos.x + playerRad) - b.minX;
+                    const penRight = b.maxX - (spidey.pos.x - playerRad);
+                    const penFront = (spidey.pos.z + playerRad) - b.minZ;
+                    const penBack = b.maxZ - (spidey.pos.z - playerRad);
+
+                    const minPen = Math.min(penLeft, penRight, penFront, penBack);
+                    if (minPen === penLeft) {
+                        spidey.pos.x = b.minX - playerRad;
+                        spidey.vel.x = 0;
+                        spidey.wallNormal = new THREE.Vector3(-1, 0, 0);
+                    } else if (minPen === penRight) {
+                        spidey.pos.x = b.maxX + playerRad;
+                        spidey.vel.x = 0;
+                        spidey.wallNormal = new THREE.Vector3(1, 0, 0);
+                    } else if (minPen === penFront) {
+                        spidey.pos.z = b.minZ - playerRad;
+                        spidey.vel.z = 0;
+                        spidey.wallNormal = new THREE.Vector3(0, 0, -1);
+                    } else {
+                        spidey.pos.z = b.maxZ + playerRad;
+                        spidey.vel.z = 0;
+                        spidey.wallNormal = new THREE.Vector3(0, 0, 1);
+                    }
+
+                    // Skyscraper Facade Collision: Smoothly deflect horizontal velocity during swings or trigger Wall-Run!
+                    if (spidey.webAttached) {
+                        // Glancing off a building while swinging pushes Spider-Man cleanly along the avenue
+                        spidey.vel.addScaledVector(spidey.wallNormal, 0.18 * pScale);
+                    } else if (keys.forward || keys.left || keys.right) {
+                        spidey.state = 'WALL_RUN';
+                        spidey.vel.y = 0.64 * pScale;
+                        spidey.runCycle += 0.22 * pScale;
+                        if (spidey.pos.y >= b.h - 2.2) {
+                            // Controlled Rooftop Ledge Vault
+                            spidey.pos.y = b.h + 0.8;
+                            spidey.vel.y = 0.78 * pScale;
+                            spidey.vel.addScaledVector(spidey.wallNormal, -0.45 * pScale);
+                            spidey.apexFlipTimer = 28;
+                        }
+                    }
+                }
+            }
+
+            // Street-Level Ground Check (y = 0)
+            if (spidey.pos.y <= 0) {
+                if (spidey.vel.y < -1.05) {
+                    camCtrl.shake = 0.85;
+                    sfx.playHit();
+                    spawn3DBurst(spidey.pos, 0xcbd5e1, 12);
+                }
+                spidey.pos.y = 0;
+                spidey.vel.y = 0;
+                if (spidey.webAttached) release3DWebSwing();
+                spidey.onGround = true;
+                supportedByRoof = true;
+            }
+
+            if (!supportedByRoof && spidey.pos.y > 0.1) {
+                spidey.onGround = false;
+            }
+
+            // ------------------------------------------------------------------------
+            // UPDATE ARTICULATED 3D SPIDER-MAN JOINT ROTATIONS & WEB LINE
+            // ------------------------------------------------------------------------
+            update3DSpiderManRigPose();
+
+            // Update 3D Active Web Line from Both of Spider-Man's Hands (Two-Handed Grip Midpoint) to Skyscraper Anchor
+            if (spidey.webAttached) {
+                activeWebLine.visible = true;
+                anchorKnobMesh.visible = true;
+                anchorKnobMesh.position.copy(spidey.anchor);
+
+                const leftHandWorld = new THREE.Vector3();
+                const rightHandWorld = new THREE.Vector3();
+                spideyRig.leftHand.getWorldPosition(leftHandWorld);
+                spideyRig.rightHand.getWorldPosition(rightHandWorld);
+                const gripWorld = leftHandWorld.add(rightHandWorld).multiplyScalar(0.5);
+
+                const posAttr = activeWebLine.geometry.attributes.position;
+                for (let i = 0; i <= WEB_SEGMENTS; i++) {
+                    const t = (i / WEB_SEGMENTS) * spidey.webShootProgress;
+                    const wx = THREE.MathUtils.lerp(gripWorld.x, spidey.anchor.x, t);
+                    const wy = THREE.MathUtils.lerp(gripWorld.y, spidey.anchor.y, t);
+                    const wz = THREE.MathUtils.lerp(gripWorld.z, spidey.anchor.z, t);
+
+                    const whipAmp = (1 - spidey.webShootProgress) * Math.sin(t * Math.PI * 3) * 1.9;
+                    posAttr.setXYZ(i, wx + whipAmp, wy + whipAmp * 0.5, wz + whipAmp);
+                }
+                posAttr.needsUpdate = true;
+            }
+
+            // ------------------------------------------------------------------------
+            // UPDATE 3D SPEED RINGS, DRONES, TRAFFIC, PEDESTRIANS & HELICOPTERS
+            // ------------------------------------------------------------------------
+            for (let i = 0; i < speedRings3D.length; i++) {
+                const r = speedRings3D[i];
+                r.innerMesh.rotation.z += 0.04;
+                if (r.cooldown > 0) {
+                    r.cooldown--;
+                    r.group.visible = r.cooldown % 4 < 2;
+                    continue;
+                }
+                r.group.visible = true;
+                if (spidey.pos.distanceTo(r.group.position) < r.radius) {
+                    r.cooldown = 360;
+                    spidey.vel.multiplyScalar(1.22);
+                    spidey.vel.y += 0.22 * pScale;
+                    spidey.focus = Math.min(100, spidey.focus + 20);
+                    camCtrl.shake = 1.0;
+                    sfx.playRingChime();
+                    addCombo(2, 'RING BOOST!', '#38bdf8');
+                    spawn3DBurst(r.group.position, 0x38bdf8, 22);
+                }
+            }
+
+            spidey.spiderSenseTimer = Math.max(0, spidey.spiderSenseTimer - 1);
+            for (let i = 0; i < drones3D.length; i++) {
+                const d = drones3D[i];
+                if (d.webbed) {
+                    d.respawnTimer--;
+                    d.group.position.y -= 0.35;
+                    d.group.rotation.x += 0.15;
+                    d.group.rotation.z += 0.15;
+                    if (d.respawnTimer <= 0) {
+                        d.webbed = false;
+                        d.group.position.set(d.baseX, d.baseY, d.baseZ);
+                        d.group.rotation.set(0, 0, 0);
+                    }
+                    continue;
+                }
+
+                d.phase += 0.04;
+                d.group.position.x = d.baseX + Math.sin(d.phase) * 14;
+                d.group.position.y = d.baseY + Math.cos(d.phase * 1.4) * 4;
+                d.ring.rotation.z += 0.08;
+
+                const distToSpidey = d.group.position.distanceTo(spidey.pos);
+                if (distToSpidey < 68) {
+                    d.attackTimer--;
+                    if (d.attackTimer < 45) {
+                        spidey.spiderSenseTimer = 10;
+                    }
+                    if (d.attackTimer <= 0) {
+                        d.attackTimer = 170;
+                        if (spidey.vel.length() < 0.85 * pScale && spidey.state !== 'STRIKE') {
+                            spidey.health = Math.max(20, spidey.health - 8);
+                            camCtrl.shake = 1.1;
+                            sfx.playHit();
+                            addComicPopup(spidey.pos.clone().add(new THREE.Vector3(0, 4, 0)), 'ZAP!', '#ef4444');
+                        } else {
+                            addCombo(1, 'SPIDER-DODGE!', '#fde047');
+                        }
+                    }
+                }
+            }
+
+            spideyRig.spiderSenseHalo.visible = spidey.spiderSenseTimer > 0;
+            if (spideyRig.spiderSenseHalo.visible) {
+                spideyRig.spiderSenseHalo.rotation.z += 0.2;
+            }
+
+            // Telemetry & Combo Timers
+            const rawSpeed = spidey.vel.length();
+            spidey.mph = Math.min(99, Math.round(rawSpeed * 42));
+            sfx.updateWind(spidey.mph);
+
+            if (!spidey.onGround) {
+                spidey.airtime += 1 / 60;
+                spidey.focus = Math.min(100, spidey.focus + rawSpeed * 0.035);
+            } else {
+                spidey.airtime = 0;
+            }
+
+            // Update Street Traffic (Taxis, Buses, Trucks, Rotating Wheels & Flashing NYPD Lightbars)
+            const flashToggle = Math.floor(spidey.animTime * 12) % 2 === 0;
+            for (let i = 0; i < cars3D.length; i++) {
+                const c = cars3D[i];
+                const stepDist = c.speed * 0.55 * pScale;
+                if (c.alongX) {
+                    c.mesh.position.x += stepDist;
+                    if (c.mesh.position.x > CITY_EXTENT) c.mesh.position.x = -CITY_EXTENT;
+                    if (c.mesh.position.x < -CITY_EXTENT) c.mesh.position.x = CITY_EXTENT;
+                } else {
+                    c.mesh.position.z += stepDist;
+                    if (c.mesh.position.z > CITY_EXTENT) c.mesh.position.z = -CITY_EXTENT;
+                    if (c.mesh.position.z < -CITY_EXTENT) c.mesh.position.z = CITY_EXTENT;
+                }
+                if (c.wheels) {
+                    for (let w = 0; w < c.wheels.length; w++) {
+                        c.wheels[w].rotation.x += Math.abs(stepDist) * 0.9;
+                    }
+                }
+                if (c.sirenMatR && c.sirenMatB) {
+                    c.sirenMatR.color.setHex(flashToggle ? 0xef4444 : 0x3b82f6);
+                    c.sirenMatB.color.setHex(flashToggle ? 0x3b82f6 : 0xef4444);
+                }
+            }
+
+            // Animate 3D Sidewalk Pedestrians
+            for (let i = 0; i < pedestrians3D.length; i++) {
+                const p = pedestrians3D[i];
+                p.phase += 0.14 * pScale;
+                p.leftLeg.rotation.x = Math.sin(p.phase) * 0.55;
+                p.rightLeg.rotation.x = -Math.sin(p.phase) * 0.55;
+                if (p.alongX) {
+                    p.group.position.x += p.speed * pScale;
+                    if (p.group.position.x > CITY_EXTENT) p.group.position.x = -CITY_EXTENT;
+                    if (p.group.position.x < -CITY_EXTENT) p.group.position.x = CITY_EXTENT;
+                } else {
+                    p.group.position.z += p.speed * pScale;
+                    if (p.group.position.z > CITY_EXTENT) p.group.position.z = -CITY_EXTENT;
+                    if (p.group.position.z < -CITY_EXTENT) p.group.position.z = CITY_EXTENT;
+                }
+            }
+
+            // Animate Patrolling 3D Helicopters & Rotors
+            for (let i = 0; i < helicopters3D.length; i++) {
+                const h = helicopters3D[i];
+                h.angle += h.speed * pScale;
+                const nx = Math.cos(h.angle) * h.radius;
+                const nz = Math.sin(h.angle) * h.radius;
+                h.group.position.set(nx, h.altitude + Math.sin(spidey.animTime + i) * 3, nz);
+                h.group.rotation.y = -h.angle;
+                h.rotor.rotation.y += 0.45;
+            }
+
+            // Animate Rising Street Manhole Steam Vents
+            for (let i = 0; i < steamPuffs3D.length; i++) {
+                const s = steamPuffs3D[i];
+                s.mesh.position.y += 0.12 * pScale;
+                s.mesh.scale.setScalar(1 + s.mesh.position.y * 0.08);
+                s.mat.opacity = Math.max(0, 0.26 * (1 - s.mesh.position.y / 16));
+                if (s.mesh.position.y > 16) {
+                    s.mesh.position.y = 0.5;
+                    s.mesh.scale.setScalar(1);
+                }
+            }
+
+            // Update 3D Particle Bursts & Released Webs
+            for (let i = particleBursts3D.length - 1; i >= 0; i--) {
+                const p = particleBursts3D[i];
+                p.mesh.position.x += p.vx;
+                p.mesh.position.y += p.vy;
+                p.mesh.position.z += p.vz;
+                p.vy -= 0.025;
+                p.life--;
+                p.mesh.scale.multiplyScalar(0.93);
+                if (p.life <= 0) {
+                    scene.remove(p.mesh);
+                    particleBursts3D.splice(i, 1);
+                }
+            }
+
+            for (let i = releasedWebLines3D.length - 1; i >= 0; i--) {
+                const rw = releasedWebLines3D[i];
+                rw.mesh.position.y -= 0.22;
+                rw.life--;
+                rw.mat.opacity = rw.life / 42;
+                if (rw.life <= 0) {
+                    scene.remove(rw.mesh);
+                    releasedWebLines3D.splice(i, 1);
+                }
+            }
+
+            // ------------------------------------------------------------------------
+            // CINEMATIC INSOMNIAC-STYLE 3D CAMERA PLACEMENT, ROLL & WALL COLLISION AVOIDANCE
+            // ------------------------------------------------------------------------
+            if (camCtrl.manualOrbitTimer > 0) {
+                camCtrl.manualOrbitTimer--;
+            } else if (!camCtrl.isDragging) {
+                // Smoothly align camera yaw behind Spider-Man's velocity & steering arc
+                if (rawSpeed > 0.14) {
+                    let angleDiff = spidey.heading - camCtrl.yaw;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    camCtrl.yaw += angleDiff * (spidey.webAttached ? 0.055 : 0.042);
+                }
+
+                // Dynamic vertical camera pitch that tilts down during dives & lifts during climbs
+                const targetPitch = spidey.onGround
+                    ? 0.15
+                    : THREE.MathUtils.clamp(0.16 - spidey.vel.y * 0.22, -0.18, 0.48);
+                camCtrl.pitch = THREE.MathUtils.lerp(camCtrl.pitch, targetPitch, 0.06);
+            }
+
+            // Dynamic FOV & Camera Distance based on swing velocity
+            const targetFov = Math.min(76, 54 + spidey.mph * 0.24);
+            camCtrl.currentFov = THREE.MathUtils.lerp(camCtrl.currentFov, targetFov, 0.08);
+            camera.fov = camCtrl.currentFov;
+            camera.updateProjectionMatrix();
+
+            const targetDist = spidey.onGround
+                ? 13.5
+                : (16.5 + Math.min(6.0, rawSpeed * 4.2));
+            camCtrl.distance = THREE.MathUtils.lerp(camCtrl.distance, targetDist, 0.08);
+
+            // Subtle over-the-shoulder framing when perched/running, centered when swinging fast
+            const shoulderBlend = spidey.onGround ? 1.35 : 0.45;
+            const shoulderRightX = -Math.cos(camCtrl.yaw) * shoulderBlend;
+            const shoulderRightZ = Math.sin(camCtrl.yaw) * shoulderBlend;
+
+            // Swing-arc vertical drop: camera drops slightly below Spider-Man at the bottom of a pendulum swoop for dramatic height feel
+            const swingDrop = spidey.webAttached ? Math.max(-1.8, spidey.vel.y * 2.2) : 0;
+
+            let idealCamX = spidey.pos.x + shoulderRightX - Math.sin(camCtrl.yaw) * Math.cos(camCtrl.pitch) * camCtrl.distance;
+            let idealCamY = Math.max(2.2, spidey.pos.y + 3.8 + swingDrop + Math.sin(camCtrl.pitch) * camCtrl.distance);
+            let idealCamZ = spidey.pos.z + shoulderRightZ - Math.cos(camCtrl.yaw) * Math.cos(camCtrl.pitch) * camCtrl.distance;
+
+            // Camera Building Collision Avoidance (Push camera outside skyscraper AABBs so buildings never block the view)
+            const camMargin = 2.4;
+            for (let i = 0; i < buildings3D.length; i++) {
+                const b = buildings3D[i];
+                if (idealCamY < b.h + camMargin &&
+                    idealCamX > b.minX - camMargin && idealCamX < b.maxX + camMargin &&
+                    idealCamZ > b.minZ - camMargin && idealCamZ < b.maxZ + camMargin) {
+                    // Push camera toward Spider-Man so it stays outside the building wall
+                    idealCamX = THREE.MathUtils.lerp(idealCamX, spidey.pos.x, 0.68);
+                    idealCamZ = THREE.MathUtils.lerp(idealCamZ, spidey.pos.z, 0.68);
+                    idealCamY = Math.max(idealCamY, spidey.pos.y + 4.5);
+                    break;
+                }
+            }
+
+            camera.position.lerp(new THREE.Vector3(idealCamX, idealCamY, idealCamZ), 0.18);
+            if (camCtrl.shake > 0.02) {
+                camera.position.x += (Math.random() - 0.5) * camCtrl.shake;
+                camera.position.y += (Math.random() - 0.5) * camCtrl.shake;
+                camCtrl.shake *= 0.85;
+            }
+
+            // Smooth Look-Ahead Target (Frames Spider-Man in the lower-middle third while looking down the avenue)
+            const desiredLook = spidey.pos.clone()
+                .add(new THREE.Vector3(shoulderRightX * 0.4, 3.6, shoulderRightZ * 0.4))
+                .addScaledVector(spidey.vel, 4.2);
+            camCtrl.lookTarget.lerp(desiredLook, 0.22);
+            camera.lookAt(camCtrl.lookTarget);
+
+            // Subtle Dutch-Angle Camera Roll when carving around Manhattan corners
+            const targetRoll = spidey.webAttached ? -spidey.cornerSteer * 0.065 : 0;
+            camCtrl.roll = THREE.MathUtils.lerp(camCtrl.roll, targetRoll, 0.1);
+            camera.rotation.z += camCtrl.roll;
+
+            // Keep Sky Dome & Directional Shadow Frustum centered on Spider-Man
+            skyDomeMesh.position.copy(spidey.pos);
+            const t = TIME_THEMES[currentTimeIndex];
+            dirLight.position.set(spidey.pos.x + t.sunPos[0] * 0.3, t.sunPos[1], spidey.pos.z + t.sunPos[2] * 0.3);
+            dirLight.target.position.copy(spidey.pos);
+            dirLight.target.updateMatrixWorld();
+        }
+
+        // ============================================================================
+        // 11. SMOOTH PROCEDURAL 3D SKELETAL POSE ENGINE FOR SPIDER-MAN
+        // ============================================================================
+        function lerpJoint(group, rx, ry, rz, alpha = 0.24) {
+            group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, rx, alpha);
+            group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, ry, alpha);
+            group.rotation.z = THREE.MathUtils.lerp(group.rotation.z, rz, alpha);
+        }
+
+        function update3DSpiderManRigPose() {
+            const R = spideyRig;
+            R.root.position.copy(spidey.pos);
+            let rootYOffset = 3.2;
+
+            // Default expressive lens squint (1.0 = normal, 0.65 = focused squint, 1.18 = wide apex)
+            let targetEyeSquint = 1.0;
+
+            if (spidey.state === 'PERCHED') {
+                // Iconic Deep Agile Spider-Crouch on Rooftops
+                rootYOffset = 1.65 + Math.sin(spidey.animTime * 1.6) * 0.04;
+                targetEyeSquint = 0.78;
+
+                lerpJoint(R.pelvis, 0, 0, 0);
+                lerpJoint(R.torso, 0.72, 0, 0);
+                lerpJoint(R.head, -0.58, Math.sin(spidey.animTime * 0.9) * 0.12, 0);
+
+                lerpJoint(R.leftHip, -1.55, -0.45, -0.32);
+                lerpJoint(R.leftKnee, 2.18, 0, 0);
+                lerpJoint(R.leftAnkle, -0.55, 0, 0);
+
+                lerpJoint(R.rightHip, -1.55, 0.45, 0.32);
+                lerpJoint(R.rightKnee, 2.18, 0, 0);
+                lerpJoint(R.rightAnkle, -0.55, 0, 0);
+
+                lerpJoint(R.leftShoulder, -0.78, 0, 0.28);
+                lerpJoint(R.leftElbow, -0.48, 0, 0);
+                lerpJoint(R.rightShoulder, -0.78, 0, -0.28);
+                lerpJoint(R.rightElbow, -0.48, 0, 0);
+                lerpJoint(R.leftFingers, 0.2, 0, 0);
+                lerpJoint(R.rightFingers, 0.2, 0, 0);
+            } else if (spidey.state === 'RUNNING' || spidey.state === 'WALL_RUN') {
+                // Controlled, Athletic Spider-Man Sprint Cycle matched to ground velocity
+                const c = spidey.runCycle;
+                const bounce = Math.abs(Math.cos(c)) * 0.16;
+                rootYOffset = 3.05 + bounce;
+                targetEyeSquint = 0.85;
+
+                if (spidey.state === 'WALL_RUN') {
+                    lerpJoint(R.pelvis, -Math.PI / 2.15, 0, 0);
+                    lerpJoint(R.torso, 0.22, Math.sin(c) * 0.24, 0);
+                } else {
+                    lerpJoint(R.pelvis, 0.12, -Math.sin(c) * 0.12, 0);
+                    lerpJoint(R.torso, 0.32, Math.sin(c) * 0.26, 0);
+                }
+                lerpJoint(R.head, -0.28, -Math.sin(c) * 0.16, 0);
+
+                lerpJoint(R.leftHip, Math.sin(c) * 0.98 - 0.1, 0, 0, 0.35);
+                lerpJoint(R.leftKnee, Math.max(0.12, -Math.cos(c) * 1.32 + 0.35), 0, 0, 0.35);
+                lerpJoint(R.leftAnkle, Math.cos(c) * 0.35, 0, 0, 0.35);
+
+                lerpJoint(R.rightHip, -Math.sin(c) * 0.98 - 0.1, 0, 0, 0.35);
+                lerpJoint(R.rightKnee, Math.max(0.12, Math.cos(c) * 1.32 + 0.35), 0, 0, 0.35);
+                lerpJoint(R.rightAnkle, -Math.cos(c) * 0.35, 0, 0, 0.35);
+
+                lerpJoint(R.leftShoulder, -Math.sin(c) * 0.88 + 0.1, 0, 0.22, 0.35);
+                lerpJoint(R.leftElbow, -1.05 + Math.sin(c) * 0.25, 0, 0, 0.35);
+                lerpJoint(R.rightShoulder, Math.sin(c) * 0.88 + 0.1, 0, -0.22, 0.35);
+                lerpJoint(R.rightElbow, -1.05 - Math.sin(c) * 0.25, 0, 0, 0.35);
+
+                // Curl fingers into athletic running fists
+                lerpJoint(R.leftFingers, 1.35, 0, 0);
+                lerpJoint(R.rightFingers, 1.35, 0, 0);
+            } else if (spidey.state === 'SWINGING') {
+                // Iconic Two-Handed 3D Pendulum Web-Swing Pose (Both hands reach overhead to grip the web line together!)
+                targetEyeSquint = 0.88;
+                const toAnchorWorld = spidey.anchor.clone().sub(spidey.pos).normalize();
+
+                // Transform anchor direction into Spider-Man's local heading frame
+                const sinH = Math.sin(-spidey.heading);
+                const cosH = Math.cos(-spidey.heading);
+                const localAx = toAnchorWorld.x * cosH + toAnchorWorld.z * sinH;
+                const localAz = -toAnchorWorld.x * sinH + toAnchorWorld.z * cosH;
+
+                const pitchTilt = Math.max(-0.55, Math.min(0.58, -spidey.vel.y * 0.45));
+                const lateralBank = THREE.MathUtils.clamp(-localAx * 0.35 - spidey.cornerSteer * 0.25, -0.48, 0.48);
+
+                lerpJoint(R.pelvis, pitchTilt, 0, lateralBank, 0.22);
+                lerpJoint(R.torso, 0.24, localAx * 0.18, 0, 0.22);
+                lerpJoint(R.head, -0.32, localAx * 0.15, 0, 0.22);
+
+                // Both arms reach overhead and angle inward so both hands grasp the web line together!
+                const armPitch = -Math.PI + Math.atan2(localAz, Math.max(0.25, toAnchorWorld.y)) * 0.65;
+
+                // Right Arm reaches up and angles inward toward center grip
+                lerpJoint(R.rightShoulder, armPitch, -0.25, 0.46, 0.32);
+                lerpJoint(R.rightElbow, -0.32, 0, 0.24, 0.32);
+                lerpJoint(R.rightFingers, 1.25, 0, 0, 0.35); //Gripping the web rope tightly
+
+                // Left Arm reaches up right alongside the right hand to catch the web with both hands
+                lerpJoint(R.leftShoulder, armPitch + 0.08, 0.25, -0.46, 0.32);
+                lerpJoint(R.leftElbow, -0.36, 0, -0.24, 0.32);
+                lerpJoint(R.leftFingers, 1.25, 0, 0, 0.35);
+
+                // Dynamic tucked acrobatic swing legs
+                if (spidey.swingHand === 'right') {
+                    lerpJoint(R.leftHip, -1.42, 0.18, -0.12);
+                    lerpJoint(R.leftKnee, 1.85, 0, 0);
+                    lerpJoint(R.leftAnkle, 0.35, 0, 0);
+
+                    lerpJoint(R.rightHip, -0.65, -0.14, 0.1);
+                    lerpJoint(R.rightKnee, 1.22, 0, 0);
+                    lerpJoint(R.rightAnkle, 0.42, 0, 0);
+                } else {
+                    lerpJoint(R.rightHip, -1.42, -0.18, 0.12);
+                    lerpJoint(R.rightKnee, 1.85, 0, 0);
+                    lerpJoint(R.rightAnkle, 0.35, 0, 0);
+
+                    lerpJoint(R.leftHip, -0.65, 0.14, -0.1);
+                    lerpJoint(R.leftKnee, 1.22, 0, 0);
+                    lerpJoint(R.leftAnkle, 0.42, 0, 0);
+                }
+            } else if (spidey.state === 'TRICK') {
+                // Fluid Mid-Air Acrobatic Somersaults & Corkscrews
+                spidey.flipAngle += 0.21 * physicsSpeedScale;
+                targetEyeSquint = 1.15;
+
+                if (spidey.trickType % 2 === 0) {
+                    R.pelvis.rotation.set(spidey.flipAngle, 0, 0);
+                } else {
+                    R.pelvis.rotation.set(0.45, spidey.flipAngle, 0);
+                }
+                lerpJoint(R.torso, 0.35, 0, 0);
+                lerpJoint(R.leftHip, -1.25, -0.32, 0);
+                lerpJoint(R.leftKnee, 1.65, 0, 0);
+                lerpJoint(R.rightHip, -1.25, 0.32, 0);
+                lerpJoint(R.rightKnee, 1.65, 0, 0);
+                lerpJoint(R.leftShoulder, -1.65, 0, 0.75);
+                lerpJoint(R.rightShoulder, -1.65, 0, -0.75);
+            } else if (spidey.state === 'STRIKE') {
+                // Dynamic Flying Jump-Kick Pose
+                targetEyeSquint = 0.62;
+                lerpJoint(R.pelvis, -0.48, 0.25, 0);
+                lerpJoint(R.torso, 0.22, -0.25, 0);
+                lerpJoint(R.rightHip, -1.48, 0, 0, 0.35);
+                lerpJoint(R.rightKnee, 0.05, 0, 0, 0.35);
+                lerpJoint(R.leftHip, 0.48, 0, -0.2, 0.35);
+                lerpJoint(R.leftKnee, 1.45, 0, 0, 0.35);
+                lerpJoint(R.leftShoulder, 0.65, 0, 0.55);
+                lerpJoint(R.rightShoulder, -1.25, 0, -0.45);
+            } else {
+                // Graceful Free-Fall, Apex Flip or Head-First Skyscraper Dive-Bomb Pose
+                if (spidey.apexFlipTimer > 0) {
+                    spidey.flipAngle += 0.16 * physicsSpeedScale;
+                    R.pelvis.rotation.set(spidey.flipAngle, 0, 0);
+                    targetEyeSquint = 1.12;
+                } else if (spidey.vel.y < -0.45) {
+                    // Aerodynamic Head-First Skyscraper Dive-Bomb!
+                    lerpJoint(R.pelvis, 1.32, 0, 0, 0.16);
+                    lerpJoint(R.head, -0.58, 0, 0, 0.16);
+                    targetEyeSquint = 0.65;
+                } else {
+                    spidey.flipAngle = 0;
+                    lerpJoint(R.pelvis, 0.15, 0, 0, 0.18);
+                    lerpJoint(R.head, -0.15, 0, 0, 0.18);
+                }
+                lerpJoint(R.torso, 0.22, 0, 0);
+                lerpJoint(R.leftHip, -0.82, -0.22, -0.12);
+                lerpJoint(R.leftKnee, 1.35, 0, 0);
+                lerpJoint(R.rightHip, 0.18, 0.18, 0.12);
+                lerpJoint(R.rightKnee, 0.72, 0, 0);
+                lerpJoint(R.leftShoulder, 0.35, 0, 0.58);
+                lerpJoint(R.leftElbow, -0.55, 0, 0);
+                lerpJoint(R.rightShoulder, 0.35, 0, -0.58);
+                lerpJoint(R.rightElbow, -0.55, 0, 0);
+            }
+
+            R.root.position.y = spidey.pos.y + rootYOffset;
+            R.root.rotation.set(0, spidey.heading, 0);
+
+            // Smoothly animate Expressive Spider-Man Lenses (Squint vs Wide)
+            R.leftEyeLens.scale.y = THREE.MathUtils.lerp(R.leftEyeLens.scale.y, targetEyeSquint, 0.2);
+            R.rightEyeLens.scale.y = THREE.MathUtils.lerp(R.rightEyeLens.scale.y, targetEyeSquint, 0.2);
+
+            // Animate Iron Spider Mechanical Arms (Waldoes) if visible
+            if (R.waldoesGroup.visible) {
+                for (let i = 0; i < R.waldoes.length; i++) {
+                    const w = R.waldoes[i];
+                    w.baseJoint.rotation.z = w.cfg.rz + Math.sin(spidey.animTime * 2 + i) * 0.16;
+                    w.baseJoint.rotation.x = -0.5 + Math.cos(spidey.animTime * 2 + i) * 0.14;
+                    w.midJoint.rotation.x = 0.85 + Math.sin(spidey.animTime * 3 + i) * 0.18;
+                }
+            }
+        }
+
+        // ============================================================================
+        // 12. 2D OVERLAY FX (Speed Lines, Comic Popups) & HUD / RADAR RENDERER
+        // ============================================================================
+        const RANKS = ['READY', 'C - COOL', 'B - BOLD', 'A - AMAZING!', 'S - SENSATIONAL!', 'SPECTACULAR!!', 'ULTIMATE 3D SPIDEY!'];
+
+        function render2DOverlayAndHUD() {
+            fxCtx.clearRect(0, 0, W, H);
+
+            // 1. Anime / Comic Radial Speed Lines at High Velocity
+            if (spidey.mph > 54) {
+                const intensity = Math.min(1, (spidey.mph - 54) / 45);
+                fxCtx.save();
+                fxCtx.strokeStyle = `rgba(255, 255, 255, ${intensity * 0.28})`;
+                fxCtx.lineWidth = 2;
+                const cx = W * 0.5;
+                const cy = H * 0.5;
+                for (let i = 0; i < 24; i++) {
+                    const ang = (i / 24) * Math.PI * 2 + (spidey.animTime * 0.5);
+                    const r1 = Math.min(W, H) * (0.42 - intensity * 0.08);
+                    const r2 = Math.max(W, H) * 0.75;
+                    fxCtx.beginPath();
+                    fxCtx.moveTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+                    fxCtx.lineTo(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2);
+                    fxCtx.stroke();
+                }
+                fxCtx.restore();
+            }
+
+            // 2. Project 3D Comic Popups ("THWIP!", "WHAM!", "APEX LAUNCH!") to 2D Screen Space
+            for (let i = comicPopups2D.length - 1; i >= 0; i--) {
+                const cp = comicPopups2D[i];
+                cp.worldPos.y += 0.08;
+                cp.life--;
+
+                const proj = cp.worldPos.clone().project(camera);
+                if (proj.z < 1) {
+                    const sx = (proj.x * 0.5 + 0.5) * W;
+                    const sy = (-proj.y * 0.5 + 0.5) * H;
+                    fxCtx.save();
+                    fxCtx.translate(sx, sy);
+                    fxCtx.globalAlpha = Math.min(1, cp.life / 14);
+                    fxCtx.font = '900 30px Bangers, cursive';
+                    fxCtx.textAlign = 'center';
+                    fxCtx.strokeStyle = '#090d16';
+                    fxCtx.lineWidth = 6;
+                    fxCtx.strokeText(cp.text, 0, 0);
+                    fxCtx.fillStyle = cp.color;
+                    fxCtx.fillText(cp.text, 0, 0);
+                    fxCtx.restore();
+                }
+
+                if (cp.life <= 0) comicPopups2D.splice(i, 1);
+            }
+
+            // 3. Update DOM HUD Elements
+            document.getElementById('healthBar').style.width = `${Math.round(spidey.health)}%`;
+            document.getElementById('healthText').textContent = `${Math.round(spidey.health)}%`;
+            document.getElementById('focusBar').style.width = `${Math.round(spidey.focus)}%`;
+            document.getElementById('hudLevel').textContent = `LVL ${spidey.level}`;
+
+            const focusHint = document.getElementById('focusHint');
+            if (spidey.focus >= 90) focusHint.classList.remove('hidden');
+            else focusHint.classList.add('hidden');
+
+            document.getElementById('comboMultiplier').textContent = `${spidey.combo}x`;
+            const rankIdx = Math.min(RANKS.length - 1, Math.floor(spidey.combo / 3));
+            document.getElementById('styleRank').textContent = spidey.combo > 0 ? RANKS[Math.max(1, rankIdx)] : 'READY';
+            document.getElementById('comboTimerBar').style.width = `${(spidey.comboTimer / 320) * 100}%`;
+            document.getElementById('scoreDisplay').textContent = spidey.score.toLocaleString().padStart(7, '0');
+            const comboCard = document.getElementById('comboCard');
+            if (comboCard) {
+                comboCard.style.opacity = spidey.combo > 0 ? '0.95' : '0.35';
+            }
+
+            document.getElementById('speedValue').textContent = spidey.mph;
+            const arcFill = Math.min(130, (spidey.mph / 100) * 130);
+            document.getElementById('speedArc').setAttribute('stroke-dasharray', `${arcFill} 170`);
+            document.getElementById('stateLabel').textContent = spidey.state;
+            document.getElementById('airtimeValue').textContent = `${spidey.airtime.toFixed(1)}s`;
+
+            // 4. Top-Down 3D Manhattan Radar Minimap
+            if (radarCtx) {
+                const rw = radarCanvas.width;
+                const rh = radarCanvas.height;
+                radarCtx.clearRect(0, 0, rw, rh);
+                const scale = 0.14;
+
+                radarCtx.save();
+                radarCtx.translate(rw * 0.5, rh * 0.5);
+                radarCtx.rotate(camCtrl.yaw - Math.PI);
+
+                // Skyscraper footprints
+                radarCtx.fillStyle = 'rgba(51, 65, 85, 0.85)';
+                for (let i = 0; i < buildings3D.length; i++) {
+                    const b = buildings3D[i];
+                    const dx = (b.x - spidey.pos.x) * scale;
+                    const dz = (b.z - spidey.pos.z) * scale;
+                    if (Math.abs(dx) > 65 || Math.abs(dz) > 65) continue;
+                    radarCtx.fillRect(dx - (b.w * scale) * 0.5, dz - (b.d * scale) * 0.5, b.w * scale, b.d * scale);
+                }
+
+                // Speed Rings (Cyan)
+                radarCtx.fillStyle = '#38bdf8';
+                for (let i = 0; i < speedRings3D.length; i++) {
+                    const r = speedRings3D[i];
+                    if (r.cooldown > 0) continue;
+                    const dx = (r.x - spidey.pos.x) * scale;
+                    const dz = (r.z - spidey.pos.z) * scale;
+                    if (Math.hypot(dx, dz) < 52) {
+                        radarCtx.beginPath();
+                        radarCtx.arc(dx, dz, 2.8, 0, Math.PI * 2);
+                        radarCtx.fill();
+                    }
+                }
+
+                // Combat Drones (Red)
+                radarCtx.fillStyle = '#ef4444';
+                for (let i = 0; i < drones3D.length; i++) {
+                    const d = drones3D[i];
+                    if (d.webbed) continue;
+                    const dx = (d.group.position.x - spidey.pos.x) * scale;
+                    const dz = (d.group.position.z - spidey.pos.z) * scale;
+                    if (Math.hypot(dx, dz) < 52) {
+                        radarCtx.beginPath();
+                        radarCtx.arc(dx, dz, 3, 0, Math.PI * 2);
+                        radarCtx.fill();
+                    }
+                }
+
+                radarCtx.restore();
+
+                // Spider-Man Center Arrow
+                radarCtx.fillStyle = '#fde047';
+                radarCtx.beginPath();
+                radarCtx.arc(rw * 0.5, rh * 0.5, 3.5, 0, Math.PI * 2);
+                radarCtx.fill();
+            }
+        }
+
+        // Responsive Window Resize
+        window.addEventListener('resize', () => {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            fxCanvas.width = W;
+            fxCanvas.height = H;
+            camera.aspect = W / H;
+            camera.updateProjectionMatrix();
+            renderer.setSize(W, H);
+        });
+        fxCanvas.width = W;
+        fxCanvas.height = H;
+
+        // ============================================================================
+        // 13. MAIN 3D ANIMATION LOOP (Started on window.onload)
+        // ============================================================================
+        function animate() {
+            requestAnimationFrame(animate);
+            update3DGame();
+            renderer.render(scene, camera);
+            render2DOverlayAndHUD();
+        }
+
+        window.onload = function () {
+            generate3DCity();
+            // Start Spider-Man in a graceful mid-swing arc above Midtown Manhattan
+            spidey.pos.set(0, 138, 52);
+            spidey.vel.set(0, -0.08, -0.76);
+            start3DWebSwing();
+            animate();
+        };
+    </script>
+</body>
+</html>
